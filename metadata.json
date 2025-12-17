@@ -1,0 +1,8 @@
+{
+  "name": "Herbarium Pro test 1",
+  "description": "A professional-grade biological specimen management system for storing, organizing, and annotating herbarium specimens with AI-powered label extraction and locality mapping.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
