@@ -1,20 +1,34 @@
 
 import React, { useState } from 'react';
-import { Specimen, Annotation } from '../types';
+import { Specimen, Annotation, Pile } from '../types';
 import Button from './Button';
 import { generateSpecimenAnnotation } from '../services/geminiService';
 import { formatCollectionDate } from '../utils/formatters';
+import AddToPileModal from './AddToPileModal';
 
 interface SpecimenDetailProps {
   specimen: Specimen;
   onAddAnnotation: (specimenId: string, annotation: Annotation) => void;
   onBack: () => void;
+  onEdit: () => void;
   onDelete?: () => void;
+  piles: Pile[];
+  onTogglePile: (pileId: string, specimenId: string) => void;
 }
 
-const SpecimenDetail: React.FC<SpecimenDetailProps> = ({ specimen, onAddAnnotation, onBack, onDelete }) => {
+const SpecimenDetail: React.FC<SpecimenDetailProps> = ({ 
+  specimen, 
+  onAddAnnotation, 
+  onBack, 
+  onEdit,
+  onDelete, 
+  piles, 
+  onTogglePile 
+}) => {
   const [newNote, setNewNote] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [showPileModal, setShowPileModal] = useState(false);
 
   const handleAISuggestAnnotation = async () => {
     setIsGenerating(true);
@@ -48,27 +62,79 @@ const SpecimenDetail: React.FC<SpecimenDetailProps> = ({ specimen, onAddAnnotati
     specimen.locality.countyCity
   ].filter(Boolean).join(' > ');
 
+  const activePileCount = piles.filter(p => p.specimenIds.includes(specimen.id)).length;
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
+      {showPileModal && (
+        <AddToPileModal 
+          specimenId={specimen.id}
+          piles={piles}
+          onTogglePile={onTogglePile}
+          onClose={() => setShowPileModal(false)}
+        />
+      )}
+
       <div className="flex justify-between items-center">
         <Button variant="outline" onClick={onBack}>
           &larr; Back to Gallery
         </Button>
-        {onDelete && (
-          <Button variant="danger" className="text-xs" onClick={onDelete}>
-            Delete Specimen
+        <div className="flex gap-2">
+          <Button variant="outline" className="text-xs" onClick={() => setShowPileModal(true)}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1m-6 9h6m-3-3l3 3m0 0l-3 3" />
+            </svg>
+            Organize ({activePileCount})
           </Button>
-        )}
+          <Button variant="secondary" className="text-xs" onClick={onEdit}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Edit
+          </Button>
+          {onDelete && (
+            <Button variant="danger" className="text-xs" onClick={onDelete}>
+              Delete
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Specimen Image */}
-        <div className="lg:col-span-2 bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200">
-          <img 
-            src={specimen.imageUrl} 
-            alt={specimen.scientificName} 
-            className="w-full h-auto"
-          />
+        {/* Gallery View */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200 relative aspect-[3/4] md:aspect-auto">
+            <img 
+              src={specimen.imageUrls[activeImageIndex]} 
+              alt={specimen.scientificName} 
+              className="w-full h-full object-contain bg-slate-50"
+            />
+            {specimen.imageUrls.length > 1 && (
+              <div className="absolute inset-x-0 bottom-4 flex justify-center gap-2">
+                {specimen.imageUrls.map((_, i) => (
+                  <button 
+                    key={i} 
+                    onClick={() => setActiveImageIndex(i)}
+                    className={`w-2 h-2 rounded-full transition-all ${i === activeImageIndex ? 'bg-emerald-600 w-6' : 'bg-slate-300'}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          
+          {specimen.imageUrls.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+              {specimen.imageUrls.map((src, i) => (
+                <button 
+                  key={i} 
+                  onClick={() => setActiveImageIndex(i)}
+                  className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${i === activeImageIndex ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-slate-200'}`}
+                >
+                  <img src={src} className="w-full h-full object-cover" alt={`Thumb ${i}`} />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Sidebar Data */}

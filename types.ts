@@ -16,6 +16,14 @@ export interface Annotation {
   timestamp: number;
 }
 
+export interface Pile {
+  id: string;
+  name: string;
+  description: string;
+  specimenIds: string[];
+  createdAt: number;
+}
+
 export interface Specimen {
   id: string;
   scientificName: string;
@@ -24,7 +32,7 @@ export interface Specimen {
   collector: string;
   collectionDate: string;
   locality: Locality;
-  imageUrl: string;
+  imageUrls: string[];
   description: string;
   annotations: Annotation[];
   tags: string[];
@@ -44,5 +52,23 @@ export interface SpecimenFormData {
   longitude: string;
   habitat: string;
   description: string;
-  image?: File;
+  images?: File[];
+}
+
+export type ActionType = 
+  | 'ADD_SPECIMEN' 
+  | 'DELETE_SPECIMEN' 
+  | 'UPDATE_SPECIMEN'
+  | 'ADD_PILE' 
+  | 'DELETE_PILE' 
+  | 'ADD_TO_PILE' 
+  | 'REMOVE_FROM_PILE' 
+  | 'ADD_ANNOTATION';
+
+export interface HistoryEntry {
+  id: string;
+  type: ActionType;
+  description: string;
+  timestamp: number;
+  data: any; // Context-specific data to facilitate UNDO
 }

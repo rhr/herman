@@ -1,37 +1,73 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Button from './Button';
-import { SpecimenFormData } from '../types';
+import { Specimen, SpecimenFormData } from '../types';
 import { extractSpecimenData } from '../services/geminiService';
 
 interface SpecimenFormProps {
-  onSubmit: (data: any) => void;
+  initialData?: Specimen;
+  onSubmit: (data: any, id?: string) => void;
   onCancel: () => void;
 }
 
-const SpecimenForm: React.FC<SpecimenFormProps> = ({ onSubmit, onCancel }) => {
+const SpecimenForm: React.FC<SpecimenFormProps> = ({ initialData, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState<Partial<SpecimenFormData>>({});
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-        setFormData(prev => ({ ...prev, image: file }));
-      };
-      reader.readAsDataURL(file);
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        scientificName: initialData.scientificName,
+        family: initialData.family,
+        genus: initialData.genus,
+        collector: initialData.collector,
+        collectionDate: initialData.collectionDate,
+        country: initialData.locality.country,
+        stateProvince: initialData.locality.stateProvince,
+        countyCity: initialData.locality.countyCity,
+        localityDescription: initialData.locality.description,
+        latitude: initialData.locality.latitude?.toString() || '',
+        longitude: initialData.locality.longitude?.toString() || '',
+        habitat: initialData.locality.habitat || '',
+        description: initialData.description,
+      });
+      setImagePreviews(initialData.imageUrls);
+    }
+  }, [initialData]);
+
+  const handleImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImagePreviews(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
+      setFormData(prev => ({ 
+        ...prev, 
+        images: [...(prev.images || []), ...files] 
+      }));
     }
   };
 
+  const removeImage = (index: number) => {
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images?.filter((_, i) => i !== index)
+    }));
+  };
+
   const handleScanLabel = async () => {
-    if (!imagePreview) return;
+    if (imagePreviews.length === 0) return;
     setIsScanning(true);
     try {
-      const base64 = imagePreview.split(',')[1];
+      // Use the first image for label extraction
+      const base64 = imagePreviews[0].split(',')[1];
       const extracted = await extractSpecimenData(base64);
       setFormData(prev => ({
         ...prev,
@@ -69,16 +105,18 @@ const SpecimenForm: React.FC<SpecimenFormProps> = ({ onSubmit, onCancel }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!imagePreview) {
-      alert("Please upload an image of the specimen.");
+    if (imagePreviews.length === 0) {
+      alert("Please upload at least one image of the specimen.");
       return;
     }
-    onSubmit({ ...formData, imageUrl: imagePreview });
+    onSubmit({ ...formData, imageUrls: imagePreviews }, initialData?.id);
   };
 
   return (
     <div className="bg-white rounded-2xl shadow-xl p-6 max-w-5xl mx-auto border border-slate-200">
-      <h2 className="text-2xl font-bold text-slate-900 mb-6 serif">Register New Specimen</h2>
+      <h2 className="text-2xl font-bold text-slate-900 mb-6 serif">
+        {initialData ? 'Edit Specimen' : 'Register New Specimen'}
+      </h2>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Left: Image Upload & Preview */}
@@ -87,36 +125,69 @@ const SpecimenForm: React.FC<SpecimenFormProps> = ({ onSubmit, onCancel }) => {
             onClick={() => fileInputRef.current?.click()}
             className="aspect-[3/4] border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 transition-all bg-slate-50 overflow-hidden relative"
           >
-            {imagePreview ? (
-              <img src={imagePreview} className="w-full h-full object-contain" alt="Preview" />
+            {imagePreviews.length > 0 ? (
+              <img src={imagePreviews[0]} className="w-full h-full object-contain" alt="Preview" />
             ) : (
               <>
                 <svg className="w-12 h-12 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2-2v12a2 2 0 002 2z" />
                 </svg>
-                <p className="text-slate-500 font-medium text-center px-4">Click to upload specimen image</p>
+                <p className="text-slate-500 font-medium text-center px-4">Click to upload specimen images</p>
+                <p className="text-xs text-slate-400 mt-1">Multiple files supported</p>
               </>
             )}
             <input 
               type="file" 
               ref={fileInputRef} 
-              onChange={handleImageChange} 
+              onChange={handleImagesChange} 
               className="hidden" 
               accept="image/*"
+              multiple
             />
           </div>
+
+          {imagePreviews.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+              {imagePreviews.map((src, i) => (
+                <div key={i} className="relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border border-slate-200 group">
+                  <img src={src} className="w-full h-full object-cover" alt={`Thumb ${i}`} />
+                  <button 
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); removeImage(i); }}
+                    className="absolute top-1 right-1 bg-rose-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                  {i === 0 && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-emerald-600 text-[8px] text-white text-center py-0.5 uppercase font-bold">Primary</div>
+                  )}
+                </div>
+              ))}
+              <button 
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-shrink-0 w-20 h-20 rounded-lg border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 hover:border-emerald-500 hover:text-emerald-500 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+            </div>
+          )}
           
           <Button 
             variant="outline" 
             className="w-full" 
             onClick={handleScanLabel}
             isLoading={isScanning}
-            disabled={!imagePreview}
+            disabled={imagePreviews.length === 0}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
-            Auto-Extract Label Data (AI)
+            Auto-Extract Label from Primary Image (AI)
           </Button>
         </div>
 
@@ -252,7 +323,9 @@ const SpecimenForm: React.FC<SpecimenFormProps> = ({ onSubmit, onCancel }) => {
 
           <div className="flex gap-3 pt-4 border-t border-slate-100">
             <Button type="button" variant="secondary" onClick={onCancel} className="flex-1">Cancel</Button>
-            <Button type="submit" variant="primary" className="flex-1">Save Specimen</Button>
+            <Button type="submit" variant="primary" className="flex-1">
+              {initialData ? 'Update Specimen' : 'Save Specimen'}
+            </Button>
           </div>
         </form>
       </div>
