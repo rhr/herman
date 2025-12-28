@@ -54,6 +54,86 @@ const SEED_DATA = {
       collectionDate: '2021-11-05',
       description: 'Juvenile foliage, glaucous and sessile. Strong aromatic scent of cineole.',
       tags: ['tree', 'aromatic']
+    },
+    {
+      id: 'sample_5',
+      scientificName: 'Rafflesia arnoldii',
+      family: 'Rafflesiaceae',
+      genus: 'Rafflesia',
+      collector: 'Joseph Arnold',
+      collectionDate: '2023-06-18',
+      description: 'World\'s largest individual flower, up to 1 meter in diameter. Parasitic, no leaves or stems. Strong carrion smell.',
+      tags: ['parasitic', 'rare', 'endangered']
+    },
+    {
+      id: 'sample_6',
+      scientificName: 'Welwitschia mirabilis',
+      family: 'Welwitschiaceae',
+      genus: 'Welwitschia',
+      collector: 'Friedrich Welwitsch',
+      collectionDate: '2022-08-30',
+      description: 'Ancient gymnosperm with only two leaves that grow continuously. Estimated age of specimen: 500+ years.',
+      tags: ['gymnosperm', 'desert', 'endemic']
+    },
+    {
+      id: 'sample_7',
+      scientificName: 'Nepenthes rajah',
+      family: 'Nepenthaceae',
+      genus: 'Nepenthes',
+      collector: 'Hugh Low',
+      collectionDate: '2024-03-12',
+      description: 'Giant tropical pitcher plant. Largest pitchers can hold 3.5 liters. Endemic to Mount Kinabalu.',
+      tags: ['carnivorous', 'tropical', 'endemic']
+    },
+    {
+      id: 'sample_8',
+      scientificName: 'Lithops aucampiae',
+      family: 'Aizoaceae',
+      genus: 'Lithops',
+      collector: 'M. L. Aucampiae',
+      collectionDate: '2023-11-22',
+      description: 'Living stone succulent with mimicry adaptation. Window-like translucent leaf tops.',
+      tags: ['succulent', 'mimicry', 'xerophyte']
+    },
+    {
+      id: 'sample_9',
+      scientificName: 'Sequoiadendron giganteum',
+      family: 'Cupressaceae',
+      genus: 'Sequoiadendron',
+      collector: 'John Muir',
+      collectionDate: '2022-07-04',
+      description: 'Giant sequoia bark sample and foliage. From specimen estimated 2,200 years old. Fire-resistant bark.',
+      tags: ['tree', 'ancient', 'endemic']
+    },
+    {
+      id: 'sample_10',
+      scientificName: 'Victoria amazonica',
+      family: 'Nymphaeaceae',
+      genus: 'Victoria',
+      collector: 'Richard Schomburgk',
+      collectionDate: '2023-12-08',
+      description: 'Giant Amazonian water lily. Leaf pads can reach 3 meters diameter and support up to 45kg.',
+      tags: ['aquatic', 'giant', 'tropical']
+    },
+    {
+      id: 'sample_11',
+      scientificName: 'Edelweiss leontopodium',
+      family: 'Asteraceae',
+      genus: 'Leontopodium',
+      collector: 'Hans Kerner',
+      collectionDate: '2024-07-20',
+      description: 'Alpine flower with woolly white bracts. Symbol of the Alps. Found at 2,800m elevation.',
+      tags: ['alpine', 'rare', 'protected']
+    },
+    {
+      id: 'sample_12',
+      scientificName: 'Dionaea muscipula',
+      family: 'Droseraceae',
+      genus: 'Dionaea',
+      collector: 'John Ellis',
+      collectionDate: '2023-04-15',
+      description: 'Venus flytrap with active snap-trap mechanism. Trigger hairs require two stimulations within 20 seconds.',
+      tags: ['carnivorous', 'endemic', 'endangered']
     }
   ],
   localities: [
@@ -96,6 +176,86 @@ const SEED_DATA = {
       latitude: -38.7423,
       longitude: 143.5121,
       habitat: 'Sclerophyll forest'
+    },
+    {
+      specimen_id: 'sample_5',
+      country: 'Indonesia',
+      state_province: 'Sumatra',
+      county_city: 'Bengkulu',
+      locality_description: 'Kerinci Seblat National Park, lowland tropical rainforest floor.',
+      latitude: -3.7327,
+      longitude: 102.2633,
+      habitat: 'Tropical rainforest'
+    },
+    {
+      specimen_id: 'sample_6',
+      country: 'Namibia',
+      state_province: 'Erongo',
+      county_city: 'Swakopmund District',
+      locality_description: 'Namib Desert, approximately 100km inland from coast on gravel plains.',
+      latitude: -22.5609,
+      longitude: 14.5268,
+      habitat: 'Hyper-arid desert'
+    },
+    {
+      specimen_id: 'sample_7',
+      country: 'Malaysia',
+      state_province: 'Sabah',
+      county_city: 'Ranau',
+      locality_description: 'Mount Kinabalu National Park, ultramafic soils at 2,400m elevation.',
+      latitude: 6.0752,
+      longitude: 116.5583,
+      habitat: 'Montane tropical forest'
+    },
+    {
+      specimen_id: 'sample_8',
+      country: 'South Africa',
+      state_province: 'Northern Cape',
+      county_city: 'Namaqualand',
+      locality_description: 'Goegap Nature Reserve, rocky quartzite outcrop.',
+      latitude: -29.6833,
+      longitude: 17.9833,
+      habitat: 'Succulent Karoo'
+    },
+    {
+      specimen_id: 'sample_9',
+      country: 'USA',
+      state_province: 'California',
+      county_city: 'Tulare County',
+      locality_description: 'Sequoia National Park, Giant Forest, western slope of Sierra Nevada.',
+      latitude: 36.5854,
+      longitude: -118.7729,
+      habitat: 'Mixed conifer forest'
+    },
+    {
+      specimen_id: 'sample_10',
+      country: 'Brazil',
+      state_province: 'Amazonas',
+      county_city: 'Manaus',
+      locality_description: 'Amazon River oxbow lake, slow-moving backwater near Rio Negro confluence.',
+      latitude: -3.1190,
+      longitude: -60.0217,
+      habitat: 'Amazonian freshwater'
+    },
+    {
+      specimen_id: 'sample_11',
+      country: 'Switzerland',
+      state_province: 'Valais',
+      county_city: 'Zermatt',
+      locality_description: 'Matterhorn region, alpine meadow above treeline.',
+      latitude: 45.9763,
+      longitude: 7.6586,
+      habitat: 'Alpine grassland'
+    },
+    {
+      specimen_id: 'sample_12',
+      country: 'USA',
+      state_province: 'North Carolina',
+      county_city: 'Pender County',
+      locality_description: 'Green Swamp Preserve, longleaf pine savanna with seepage bog.',
+      latitude: 34.1886,
+      longitude: -78.0642,
+      habitat: 'Coastal plain pocosin'
     }
   ],
   images: [
@@ -103,7 +263,15 @@ const SEED_DATA = {
     { specimen_id: 'sample_1', url: 'https://images.unsplash.com/photo-1536147116438-62679a5e01f2?auto=format&fit=crop&q=80&w=800', position: 1 },
     { specimen_id: 'sample_2', url: 'https://images.unsplash.com/photo-1579338559194-a162d19bf842?auto=format&fit=crop&q=80&w=800', position: 0 },
     { specimen_id: 'sample_3', url: 'https://images.unsplash.com/photo-1614594805323-e5a73277e4e0?auto=format&fit=crop&q=80&w=800', position: 0 },
-    { specimen_id: 'sample_4', url: 'https://images.unsplash.com/photo-1544158942-82463e258462?auto=format&fit=crop&q=80&w=800', position: 0 }
+    { specimen_id: 'sample_4', url: 'https://images.unsplash.com/photo-1544158942-82463e258462?auto=format&fit=crop&q=80&w=800', position: 0 },
+    { specimen_id: 'sample_5', url: 'https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&q=80&w=800', position: 0 },
+    { specimen_id: 'sample_6', url: 'https://images.unsplash.com/photo-1509937528035-ad76254b0356?auto=format&fit=crop&q=80&w=800', position: 0 },
+    { specimen_id: 'sample_7', url: 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&q=80&w=800', position: 0 },
+    { specimen_id: 'sample_8', url: 'https://images.unsplash.com/photo-1459156212016-c812468e2115?auto=format&fit=crop&q=80&w=800', position: 0 },
+    { specimen_id: 'sample_9', url: 'https://images.unsplash.com/photo-1511497584788-876760111969?auto=format&fit=crop&q=80&w=800', position: 0 },
+    { specimen_id: 'sample_10', url: 'https://images.unsplash.com/photo-1520763185298-1b434c919102?auto=format&fit=crop&q=80&w=800', position: 0 },
+    { specimen_id: 'sample_11', url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&q=80&w=800', position: 0 },
+    { specimen_id: 'sample_12', url: 'https://images.unsplash.com/photo-1463320726281-696a485928c7?auto=format&fit=crop&q=80&w=800', position: 0 }
   ],
   piles: [
     {
@@ -117,7 +285,28 @@ const SEED_DATA = {
       id: 'pile_2',
       name: 'Southern Hemisphere Flora',
       description: 'Specimens collected from Australia and South Africa.',
-      specimenIds: ['sample_2', 'sample_3', 'sample_4'],
+      specimenIds: ['sample_2', 'sample_3', 'sample_4', 'sample_8'],
+      createdAt: Date.now()
+    },
+    {
+      id: 'pile_3',
+      name: 'Carnivorous Plants',
+      description: 'Fascinating collection of carnivorous plant species with various trapping mechanisms.',
+      specimenIds: ['sample_3', 'sample_7', 'sample_12'],
+      createdAt: Date.now()
+    },
+    {
+      id: 'pile_4',
+      name: 'Extreme Environments',
+      description: 'Plants adapted to harsh conditions: deserts, alpine zones, and ancient survivors.',
+      specimenIds: ['sample_6', 'sample_9', 'sample_11'],
+      createdAt: Date.now()
+    },
+    {
+      id: 'pile_5',
+      name: 'Tropical Treasures',
+      description: 'Rare and remarkable specimens from tropical rainforests.',
+      specimenIds: ['sample_5', 'sample_7', 'sample_10'],
       createdAt: Date.now()
     }
   ]
