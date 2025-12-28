@@ -8,6 +8,8 @@ import SpecimenTable, { ColumnId } from './components/SpecimenTable';
 import PileSidebar from './components/PileSidebar';
 import ActionHistory from './components/ActionHistory';
 import Button from './components/Button';
+import MapView from './components/MapView';
+import SpecimenMapCard from './components/SpecimenMapCard';
 import { DatabaseService } from './services/databaseService';
 
 const ALL_COLUMNS: { id: ColumnId; label: string }[] = [
@@ -29,7 +31,7 @@ const App: React.FC = () => {
   const [activePileId, setActivePileId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<'gallery' | 'add' | 'detail' | 'edit'>('gallery');
-  const [layout, setLayout] = useState<'grid' | 'table'>('grid');
+  const [layout, setLayout] = useState<'grid' | 'table' | 'map'>('grid');
   const [selectedSpecimenId, setSelectedSpecimenId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(['specimen', 'family', 'locality', 'collector', 'date']);
@@ -349,11 +351,15 @@ const App: React.FC = () => {
   };
 
   const toggleColumn = (colId: ColumnId) => {
-    setVisibleColumns(prev => 
-      prev.includes(colId) 
-        ? prev.filter(id => id !== colId) 
+    setVisibleColumns(prev =>
+      prev.includes(colId)
+        ? prev.filter(id => id !== colId)
         : [...prev, colId]
     );
+  };
+
+  const handleMapMarkerClick = (id: string) => {
+    setSelectedSpecimenId(id);
   };
 
   return (
@@ -485,7 +491,7 @@ const App: React.FC = () => {
                       )}
 
                       <div className="flex bg-slate-100 p-1 rounded-lg">
-                        <button 
+                        <button
                           onClick={() => setLayout('grid')}
                           className={`px-3 py-1.5 rounded-md flex items-center gap-2 text-xs font-bold transition-all ${layout === 'grid' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}
                         >
@@ -494,7 +500,7 @@ const App: React.FC = () => {
                           </svg>
                           Grid
                         </button>
-                        <button 
+                        <button
                           onClick={() => setLayout('table')}
                           className={`px-3 py-1.5 rounded-md flex items-center gap-2 text-xs font-bold transition-all ${layout === 'table' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}
                         >
@@ -503,25 +509,57 @@ const App: React.FC = () => {
                           </svg>
                           Table
                         </button>
+                        <button
+                          onClick={() => setLayout('map')}
+                          className={`px-3 py-1.5 rounded-md flex items-center gap-2 text-xs font-bold transition-all ${layout === 'map' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                          </svg>
+                          Map
+                        </button>
                       </div>
                     </div>
                   </div>
 
                   {filteredSpecimens.length > 0 ? (
-                    layout === 'grid' ? (
+                    layout === 'map' ? (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Left Panel: Scrollable List */}
+                        <div className="space-y-4 max-h-[800px] overflow-y-auto">
+                          {filteredSpecimens.map(s => (
+                            <SpecimenMapCard
+                              key={s.id}
+                              specimen={s}
+                              isSelected={selectedSpecimenId === s.id}
+                              onClick={() => handleMapMarkerClick(s.id)}
+                            />
+                          ))}
+                        </div>
+
+                        {/* Right Panel: Map */}
+                        <div className="sticky top-4 h-[800px]">
+                          <MapView
+                            specimens={filteredSpecimens}
+                            selectedSpecimenId={selectedSpecimenId}
+                            onSelectSpecimen={handleMapMarkerClick}
+                          />
+                        </div>
+                      </div>
+                    ) : layout === 'grid' ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredSpecimens.map(s => (
-                          <SpecimenCard 
-                            key={s.id} 
-                            specimen={s} 
-                            onClick={openSpecimen} 
+                          <SpecimenCard
+                            key={s.id}
+                            specimen={s}
+                            onClick={openSpecimen}
                           />
                         ))}
                       </div>
                     ) : (
-                      <SpecimenTable 
-                        specimens={filteredSpecimens} 
-                        onClick={openSpecimen} 
+                      <SpecimenTable
+                        specimens={filteredSpecimens}
+                        onClick={openSpecimen}
                         visibleColumns={visibleColumns}
                       />
                     )
