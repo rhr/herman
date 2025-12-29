@@ -256,9 +256,19 @@ const App: React.FC = () => {
 
     setPiles(prev => prev.filter(p => p.id !== id));
     pushHistory('DELETE_PILE', `Deleted pile: ${pileToDelete.name}`, { pile: pileToDelete });
-    
+
     if (activePileId === id) setActivePileId(null);
     await DatabaseService.deletePile(id);
+  };
+
+  const handleReorderPiles = async (reorderedPiles: Pile[]) => {
+    setPiles(reorderedPiles);
+    try {
+      await DatabaseService.savePiles(reorderedPiles);
+    } catch (error) {
+      console.error("Failed to save pile order:", error);
+      loadData();
+    }
   };
 
   const handleAddSpecimenToPile = async (pileId: string, specimenId: string) => {
@@ -449,6 +459,7 @@ const App: React.FC = () => {
                       onDeletePile={handleDeletePile}
                       onDropSpecimen={handleAddSpecimenToPile}
                       onRemoveFromPile={handleRemoveSpecimenFromPile}
+                      onReorderPiles={handleReorderPiles}
                     />
                   )}
                 </div>

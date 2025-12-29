@@ -11,21 +11,25 @@ interface PileSidebarProps {
   onDeletePile: (id: string) => void;
   onDropSpecimen: (pileId: string, specimenId: string) => void;
   onRemoveFromPile: (pileId: string, specimenId: string) => void;
+  onReorderPiles: (reorderedPiles: Pile[]) => void;
 }
 
-const PileSidebar: React.FC<PileSidebarProps> = ({ 
-  piles, 
-  activePileId, 
-  onSelectPile, 
+const PileSidebar: React.FC<PileSidebarProps> = ({
+  piles,
+  activePileId,
+  onSelectPile,
   onCreatePile,
   onDeletePile,
   onDropSpecimen,
-  onRemoveFromPile
+  onRemoveFromPile,
+  onReorderPiles
 }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [dragOverPileId, setDragOverPileId] = useState<string | null>(null);
   const [isDraggingOverAll, setIsDraggingOverAll] = useState(false);
+  const [draggingPileId, setDraggingPileId] = useState<string | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +70,45 @@ const PileSidebar: React.FC<PileSidebarProps> = ({
     }
   };
 
+  // Pile reordering handlers
+  const handlePileDragStart = (e: React.DragEvent, pileId: string) => {
+    setDraggingPileId(pileId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('pileId', pileId);
+  };
+
+  const handlePileDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    const draggingPile = e.dataTransfer.types.includes('pileid');
+    if (draggingPile) {
+      setDragOverIndex(index);
+      e.dataTransfer.dropEffect = 'move';
+    }
+  };
+
+  const handlePileDragEnd = () => {
+    setDraggingPileId(null);
+    setDragOverIndex(null);
+  };
+
+  const handlePileDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    const draggedPileId = e.dataTransfer.getData('pileId');
+
+    if (!draggedPileId) return;
+
+    const draggedIndex = piles.findIndex(p => p.id === draggedPileId);
+    if (draggedIndex === -1 || draggedIndex === dropIndex) return;
+
+    const reorderedPiles = [...piles];
+    const [removed] = reorderedPiles.splice(draggedIndex, 1);
+    reorderedPiles.splice(dropIndex, 0, removed);
+
+    onReorderPiles(reorderedPiles);
+    setDragOverIndex(null);
+    setDraggingPileId(null);
+  };
+
   return (
     <div className="w-full md:w-64 flex-shrink-0 space-y-6">
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
@@ -103,20 +146,29 @@ const PileSidebar: React.FC<PileSidebarProps> = ({
             {isDraggingOverAll ? 'Remove from Pile' : 'All Specimens'}
           </button>
 
-          {piles.map(pile => {
+          {piles.map((pile, index) => {
             const isDraggingOver = dragOverPileId === pile.id;
             const isActive = activePileId === pile.id;
-            
+            const isBeingDragged = draggingPileId === pile.id;
+            const showDropIndicator = dragOverIndex === index && !isBeingDragged;
+
             return (
               <div key={pile.id} className="group relative">
+                {showDropIndicator && (
+                  <div className="h-0.5 bg-emerald-500 rounded-full mb-1 shadow-sm" />
+                )}
                 <button
-                  onDragOver={(e) => handleDragOver(e, pile.id)}
+                  draggable={true}
+                  onDragStart={(e) => handlePileDragStart(e, pile.id)}
+                  onDragOver={(e) => handlePileDragOver(e, index)}
+                  onDragEnd={handlePileDragEnd}
+                  onDrop={(e) => handlePileDrop(e, index)}
                   onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, pile.id)}
                   onClick={() => onSelectPile(pile.id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-between gap-3 ${
-                    isActive ? 'bg-emerald-50 text-emerald-700' : 
-                    isDraggingOver ? 'bg-emerald-600 text-white scale-[1.02] shadow-md ring-2 ring-emerald-300' : 
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-between gap-3 cursor-move ${
+                    isBeingDragged ? 'opacity-40 scale-95' :
+                    isActive ? 'bg-emerald-50 text-emerald-700' :
+                    isDraggingOver ? 'bg-emerald-600 text-white scale-[1.02] shadow-md ring-2 ring-emerald-300' :
                     'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                   }`}
                 >
@@ -127,13 +179,13 @@ const PileSidebar: React.FC<PileSidebarProps> = ({
                     <span className="truncate">{pile.name}</span>
                   </div>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
-                    isDraggingOver ? 'bg-emerald-700 text-white' : 
+                    isDraggingOver ? 'bg-emerald-700 text-white' :
                     'bg-slate-100 text-slate-500 group-hover:bg-slate-200'
                   }`}>
                     {pile.specimenIds.length}
                   </span>
                 </button>
-                <button 
+                <button
                   onClick={(e) => { e.stopPropagation(); onDeletePile(pile.id); }}
                   className="absolute right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-rose-500 transition-all"
                 >

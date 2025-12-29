@@ -457,6 +457,11 @@ export class DatabaseService {
     this.saveToStorage(STORAGE_KEYS.PILES, piles);
   }
 
+  static async savePiles(piles: Pile[]): Promise<void> {
+    await delay(300);
+    this.saveToStorage(STORAGE_KEYS.PILES, piles);
+  }
+
   static async deletePile(id: string): Promise<void> {
     await delay(300);
     const piles = this.getFromStorage<Pile>(STORAGE_KEYS.PILES).filter(p => p.id !== id);
