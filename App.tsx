@@ -36,6 +36,7 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(['specimen', 'family', 'locality', 'collector', 'date']);
   const [showColumnPicker, setShowColumnPicker] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const columnPickerRef = useRef<HTMLDivElement>(null);
 
   // Load specimens and piles from "database" on mount
@@ -204,6 +205,7 @@ const App: React.FC = () => {
       },
       imageUrls: data.imageUrls || [],
       description: data.description || '',
+      microhabitat: data.microhabitat || '',
       annotations: existingSpecimen?.annotations || [],
       tags: existingSpecimen?.tags || []
     };
@@ -431,29 +433,56 @@ const App: React.FC = () => {
         ) : (
           <>
             {view === 'gallery' && (
-              <div className="flex flex-col md:flex-row gap-8">
-                <PileSidebar 
-                  piles={piles} 
-                  activePileId={activePileId} 
-                  onSelectPile={setActivePileId} 
-                  onCreatePile={handleCreatePile}
-                  onDeletePile={handleDeletePile}
-                  onDropSpecimen={handleAddSpecimenToPile}
-                  onRemoveFromPile={handleRemoveSpecimenFromPile}
-                />
+              <div className="flex flex-col md:flex-row gap-8 relative">
+                {/* Collapsible Sidebar */}
+                <div
+                  className={`relative transition-all duration-300 ${
+                    isSidebarCollapsed ? 'w-0 overflow-hidden opacity-0' : 'w-full md:w-80'
+                  }`}
+                >
+                  {!isSidebarCollapsed && (
+                    <PileSidebar
+                      piles={piles}
+                      activePileId={activePileId}
+                      onSelectPile={setActivePileId}
+                      onCreatePile={handleCreatePile}
+                      onDeletePile={handleDeletePile}
+                      onDropSpecimen={handleAddSpecimenToPile}
+                      onRemoveFromPile={handleRemoveSpecimenFromPile}
+                    />
+                  )}
+                </div>
 
-                <div className="flex-1 min-0">
+                <div className={`flex-1 min-0 transition-all duration-300 ${isSidebarCollapsed ? 'md:ml-0' : ''}`}>
                   <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
-                    <div>
-                      <h2 className="text-3xl font-bold text-slate-900 serif">
-                        {activePile ? activePile.name : 'Digital Collection'}
-                      </h2>
-                      <p className="text-slate-500 mt-1">
-                        {activePile ? (activePile.description || 'Virtual collection of selected specimens') : 'Curated primary database'} 
-                        • Found {filteredSpecimens.length} items
-                      </p>
+                    <div className="flex items-center gap-3">
+                      {/* Sidebar Toggle */}
+                      <button
+                        onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                        className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors flex-shrink-0"
+                        title={isSidebarCollapsed ? "Show piles sidebar" : "Hide piles sidebar"}
+                      >
+                        <svg
+                          className={`w-5 h-5 transition-transform ${isSidebarCollapsed ? 'rotate-180' : ''}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                        </svg>
+                      </button>
+
+                      <div>
+                        <h2 className="text-3xl font-bold text-slate-900 serif">
+                          {activePile ? activePile.name : 'Digital Collection'}
+                        </h2>
+                        <p className="text-slate-500 mt-1">
+                          {activePile ? (activePile.description || 'Virtual collection of selected specimens') : 'Curated primary database'}
+                          • Found {filteredSpecimens.length} items
+                        </p>
+                      </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       {layout === 'table' && (
                         <div className="relative" ref={columnPickerRef}>
