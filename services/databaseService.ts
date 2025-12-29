@@ -23,6 +23,7 @@ const SEED_DATA = {
       collector: 'Julian Steyermark',
       collectionDate: '2022-05-14',
       description: 'Delicate fern with black stipes and fan-shaped pinnules. Growing on damp limestone.',
+      microhabitat: 'Shaded dripping rock face with constant moisture, pH 7.5-8.0',
       tags: ['fern', 'calciphile']
     },
     {
@@ -33,6 +34,7 @@ const SEED_DATA = {
       collector: 'E. Esterhuysen',
       collectionDate: '2023-09-22',
       description: 'The King Protea. Large flower head with pinkish-red involucral bracts. Woody shrub.',
+      microhabitat: 'South-facing slope with well-drained sandy soil, full sun exposure',
       tags: ['fynbos', 'shrub']
     },
     {
@@ -43,6 +45,7 @@ const SEED_DATA = {
       collector: 'Charles Darwin (Simulated)',
       collectionDate: '2024-01-10',
       description: 'Carnivorous plant with strap-shaped leaves covered in glandular tentacles.',
+      microhabitat: 'Nutrient-poor peat bog with standing water, pH 4.5-5.5',
       tags: ['carnivorous', 'wetland']
     },
     {
@@ -53,6 +56,7 @@ const SEED_DATA = {
       collector: 'Ferdinand von Mueller',
       collectionDate: '2021-11-05',
       description: 'Juvenile foliage, glaucous and sessile. Strong aromatic scent of cineole.',
+      microhabitat: 'Edge of forest clearing, deep loamy soil with seasonal fog influence',
       tags: ['tree', 'aromatic']
     },
     {
@@ -63,6 +67,7 @@ const SEED_DATA = {
       collector: 'Joseph Arnold',
       collectionDate: '2023-06-18',
       description: 'World\'s largest individual flower, up to 1 meter in diameter. Parasitic, no leaves or stems. Strong carrion smell.',
+      microhabitat: 'Parasitic on Tetrastigma vine roots in deep shade, forest floor leaf litter',
       tags: ['parasitic', 'rare', 'endangered']
     },
     {
@@ -73,6 +78,7 @@ const SEED_DATA = {
       collector: 'Friedrich Welwitsch',
       collectionDate: '2022-08-30',
       description: 'Ancient gymnosperm with only two leaves that grow continuously. Estimated age of specimen: 500+ years.',
+      microhabitat: 'Gravel plains with coastal fog influence, deep tap root accessing groundwater',
       tags: ['gymnosperm', 'desert', 'endemic']
     },
     {
@@ -83,6 +89,7 @@ const SEED_DATA = {
       collector: 'Hugh Low',
       collectionDate: '2024-03-12',
       description: 'Giant tropical pitcher plant. Largest pitchers can hold 3.5 liters. Endemic to Mount Kinabalu.',
+      microhabitat: 'Ultramafic substrate ridge top, exposed to afternoon mist, serpentine soil',
       tags: ['carnivorous', 'tropical', 'endemic']
     },
     {
@@ -93,6 +100,7 @@ const SEED_DATA = {
       collector: 'M. L. Aucampiae',
       collectionDate: '2023-11-22',
       description: 'Living stone succulent with mimicry adaptation. Window-like translucent leaf tops.',
+      microhabitat: 'Partially buried in quartzite gravel, cryptic among stones, minimal soil cover',
       tags: ['succulent', 'mimicry', 'xerophyte']
     },
     {
@@ -103,6 +111,7 @@ const SEED_DATA = {
       collector: 'John Muir',
       collectionDate: '2022-07-04',
       description: 'Giant sequoia bark sample and foliage. From specimen estimated 2,200 years old. Fire-resistant bark.',
+      microhabitat: 'West-facing slope with seasonal snowmelt, thick duff layer, fire-adapted stand',
       tags: ['tree', 'ancient', 'endemic']
     },
     {
@@ -113,6 +122,7 @@ const SEED_DATA = {
       collector: 'Richard Schomburgk',
       collectionDate: '2023-12-08',
       description: 'Giant Amazonian water lily. Leaf pads can reach 3 meters diameter and support up to 45kg.',
+      microhabitat: 'Slow-moving oxbow lake with warm water (28-30°C), muddy bottom at 1-2m depth',
       tags: ['aquatic', 'giant', 'tropical']
     },
     {
@@ -123,6 +133,7 @@ const SEED_DATA = {
       collector: 'Hans Kerner',
       collectionDate: '2024-07-20',
       description: 'Alpine flower with woolly white bracts. Symbol of the Alps. Found at 2,800m elevation.',
+      microhabitat: 'Limestone scree above treeline, northeast-facing slope with late-melting snow',
       tags: ['alpine', 'rare', 'protected']
     },
     {
@@ -133,6 +144,7 @@ const SEED_DATA = {
       collector: 'John Ellis',
       collectionDate: '2023-04-15',
       description: 'Venus flytrap with active snap-trap mechanism. Trigger hairs require two stimulations within 20 seconds.',
+      microhabitat: 'Open savanna with frequent fire regime, acidic sandy soil with high water table',
       tags: ['carnivorous', 'endemic', 'endangered']
     }
   ],

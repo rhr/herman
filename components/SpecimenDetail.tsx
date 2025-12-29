@@ -170,6 +170,13 @@ const SpecimenDetail: React.FC<SpecimenDetailProps> = ({
                   </div>
                 )}
 
+                {specimen.microhabitat && (
+                  <div className="mb-3">
+                    <p className="text-slate-500 text-[10px] uppercase font-bold mb-1">Microhabitat</p>
+                    <p className="text-sm text-slate-700 italic">{specimen.microhabitat}</p>
+                  </div>
+                )}
+
                 {(specimen.locality.latitude && specimen.locality.longitude) && (
                   <div className="bg-slate-50 p-3 rounded-lg flex items-center gap-3">
                     <div className="bg-emerald-100 p-2 rounded-full">

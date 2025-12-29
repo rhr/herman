@@ -31,6 +31,7 @@ const SpecimenForm: React.FC<SpecimenFormProps> = ({ initialData, onSubmit, onCa
         latitude: initialData.locality.latitude?.toString() || '',
         longitude: initialData.locality.longitude?.toString() || '',
         habitat: initialData.locality.habitat || '',
+        microhabitat: initialData.microhabitat || '',
         description: initialData.description,
       });
       setImagePreviews(initialData.imageUrls);
@@ -264,12 +265,23 @@ const SpecimenForm: React.FC<SpecimenFormProps> = ({ initialData, onSubmit, onCa
 
             <div className="col-span-2">
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Habitat</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="e.g. Wet coastal forest, sandy soil"
-                value={formData.habitat || ''} 
+                value={formData.habitat || ''}
                 onChange={e => setFormData({...formData, habitat: e.target.value})}
-                className="w-full p-2 border border-slate-200 rounded-lg text-sm" 
+                className="w-full p-2 border border-slate-200 rounded-lg text-sm"
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Microhabitat</label>
+              <input
+                type="text"
+                placeholder="e.g. Under rock overhang, on north-facing slope"
+                value={formData.microhabitat || ''}
+                onChange={e => setFormData({...formData, microhabitat: e.target.value})}
+                className="w-full p-2 border border-slate-200 rounded-lg text-sm"
               />
             </div>
 

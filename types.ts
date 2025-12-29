@@ -34,6 +34,7 @@ export interface Specimen {
   locality: Locality;
   imageUrls: string[];
   description: string;
+  microhabitat?: string;
   annotations: Annotation[];
   tags: string[];
 }
@@ -51,6 +52,7 @@ export interface SpecimenFormData {
   latitude: string;
   longitude: string;
   habitat: string;
+  microhabitat: string;
   description: string;
   images?: File[];
 }
