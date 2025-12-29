@@ -4,7 +4,7 @@ import { Specimen, Annotation, Pile, HistoryEntry, ActionType } from './types';
 import SpecimenCard from './components/SpecimenCard';
 import SpecimenForm from './components/SpecimenForm';
 import SpecimenDetail from './components/SpecimenDetail';
-import SpecimenTable, { ColumnId } from './components/SpecimenTable';
+import SpecimenTable, { ColumnId, SortableColumnId, SortDirection } from './components/SpecimenTable';
 import PileSidebar from './components/PileSidebar';
 import ActionHistory from './components/ActionHistory';
 import Button from './components/Button';
@@ -31,12 +31,29 @@ const App: React.FC = () => {
   const [activePileId, setActivePileId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<'gallery' | 'add' | 'detail' | 'edit'>('gallery');
-  const [layout, setLayout] = useState<'grid' | 'table' | 'map'>('grid');
+  const [layout, setLayout] = useState<'grid' | 'table' | 'map'>(() => {
+    const saved = localStorage.getItem('layout');
+    return (saved as 'grid' | 'table' | 'map') || 'grid';
+  });
   const [selectedSpecimenId, setSelectedSpecimenId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(['specimen', 'family', 'locality', 'collector', 'date']);
+  const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(() => {
+    const saved = localStorage.getItem('visibleColumns');
+    return saved ? JSON.parse(saved) : ['specimen', 'family', 'locality', 'collector', 'date'];
+  });
   const [showColumnPicker, setShowColumnPicker] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('isSidebarCollapsed');
+    return saved === 'true';
+  });
+  const [sortColumn, setSortColumn] = useState<SortableColumnId | null>(() => {
+    const saved = localStorage.getItem('sortColumn');
+    return saved as SortableColumnId | null;
+  });
+  const [sortDirection, setSortDirection] = useState<SortDirection>(() => {
+    const saved = localStorage.getItem('sortDirection');
+    return (saved as SortDirection) || 'asc';
+  });
   const columnPickerRef = useRef<HTMLDivElement>(null);
 
   // Load specimens and piles from "database" on mount
@@ -65,6 +82,34 @@ const App: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Persist visible columns to localStorage
+  useEffect(() => {
+    localStorage.setItem('visibleColumns', JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
+
+  // Persist layout preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('layout', layout);
+  }, [layout]);
+
+  // Persist sidebar visibility to localStorage
+  useEffect(() => {
+    localStorage.setItem('isSidebarCollapsed', String(isSidebarCollapsed));
+  }, [isSidebarCollapsed]);
+
+  // Persist sort preferences to localStorage
+  useEffect(() => {
+    if (sortColumn) {
+      localStorage.setItem('sortColumn', sortColumn);
+    } else {
+      localStorage.removeItem('sortColumn');
+    }
+  }, [sortColumn]);
+
+  useEffect(() => {
+    localStorage.setItem('sortDirection', sortDirection);
+  }, [sortDirection]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -171,13 +216,50 @@ const App: React.FC = () => {
         base = specimens.filter(s => targetPile.specimenIds.includes(s.id));
       }
     }
-    
-    return base.filter(s => 
+
+    let filtered = base.filter(s =>
       s.scientificName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.family.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.collector.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [specimens, searchQuery, activePileId, piles]);
+
+    // Apply sorting
+    if (sortColumn) {
+      filtered = [...filtered].sort((a, b) => {
+        let aVal: string | number = '';
+        let bVal: string | number = '';
+
+        switch (sortColumn) {
+          case 'id':
+            aVal = a.id;
+            bVal = b.id;
+            break;
+          case 'family':
+            aVal = a.family.toLowerCase();
+            bVal = b.family.toLowerCase();
+            break;
+          case 'genus':
+            aVal = (a.genus || a.scientificName.split(' ')[0]).toLowerCase();
+            bVal = (b.genus || b.scientificName.split(' ')[0]).toLowerCase();
+            break;
+          case 'collector':
+            aVal = a.collector.toLowerCase();
+            bVal = b.collector.toLowerCase();
+            break;
+          case 'date':
+            aVal = a.collectionDate;
+            bVal = b.collectionDate;
+            break;
+        }
+
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [specimens, searchQuery, activePileId, piles, sortColumn, sortDirection]);
 
   const activeSpecimen = useMemo(() => {
     return specimens.find(s => s.id === selectedSpecimenId);
@@ -363,15 +445,31 @@ const App: React.FC = () => {
   };
 
   const toggleColumn = (colId: ColumnId) => {
-    setVisibleColumns(prev =>
-      prev.includes(colId)
+    setVisibleColumns(prev => {
+      const newSelection = prev.includes(colId)
         ? prev.filter(id => id !== colId)
-        : [...prev, colId]
-    );
+        : [...prev, colId];
+
+      // Sort by the order defined in ALL_COLUMNS
+      return ALL_COLUMNS
+        .map(col => col.id)
+        .filter(id => newSelection.includes(id));
+    });
   };
 
   const handleMapMarkerClick = (id: string) => {
     setSelectedSpecimenId(id);
+  };
+
+  const handleSort = (column: SortableColumnId) => {
+    if (sortColumn === column) {
+      // Toggle direction if clicking the same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new column and default to ascending
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
   };
 
   return (
@@ -508,14 +606,14 @@ const App: React.FC = () => {
                           </button>
 
                           {showColumnPicker && (
-                            <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 z-50 p-4">
+                            <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 z-50 p-4">
                               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Visible Columns</h4>
                               <div className="space-y-2">
                                 {ALL_COLUMNS.map(col => (
                                   <label key={col.id} className="flex items-center gap-3 cursor-pointer group">
-                                    <input 
-                                      type="checkbox" 
-                                      checked={visibleColumns.includes(col.id)} 
+                                    <input
+                                      type="checkbox"
+                                      checked={visibleColumns.includes(col.id)}
                                       onChange={() => toggleColumn(col.id)}
                                       className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                                     />
@@ -601,6 +699,9 @@ const App: React.FC = () => {
                         specimens={filteredSpecimens}
                         onClick={openSpecimen}
                         visibleColumns={visibleColumns}
+                        sortColumn={sortColumn}
+                        sortDirection={sortDirection}
+                        onSort={handleSort}
                       />
                     )
                   ) : (

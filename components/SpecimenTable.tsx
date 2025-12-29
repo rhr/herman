@@ -4,18 +4,25 @@ import { Specimen } from '../types';
 import { formatCollectionDate } from '../utils/formatters';
 
 export type ColumnId = 'specimen' | 'family' | 'genus' | 'locality' | 'habitat' | 'collector' | 'date' | 'id';
+export type SortableColumnId = 'id' | 'family' | 'genus' | 'collector' | 'date';
+export type SortDirection = 'asc' | 'desc';
 
 interface SpecimenTableProps {
   specimens: Specimen[];
   onClick: (id: string) => void;
   visibleColumns: ColumnId[];
+  sortColumn: SortableColumnId | null;
+  sortDirection: SortDirection;
+  onSort: (column: SortableColumnId) => void;
 }
 
-const SpecimenTable: React.FC<SpecimenTableProps> = ({ specimens, onClick, visibleColumns }) => {
+const SpecimenTable: React.FC<SpecimenTableProps> = ({ specimens, onClick, visibleColumns, sortColumn, sortDirection, onSort }) => {
   const handleDragStart = (e: React.DragEvent, id: string) => {
     e.dataTransfer.setData('specimenId', id);
     e.dataTransfer.effectAllowed = 'move';
   };
+
+  const sortableColumns: SortableColumnId[] = ['id', 'family', 'genus', 'collector', 'date'];
 
   const renderHeader = (colId: ColumnId) => {
     const labels: Record<ColumnId, string> = {
@@ -28,6 +35,38 @@ const SpecimenTable: React.FC<SpecimenTableProps> = ({ specimens, onClick, visib
       date: 'Date',
       id: 'ID'
     };
+
+    const isSortable = sortableColumns.includes(colId as SortableColumnId);
+    const isActiveSortColumn = sortColumn === colId;
+
+    if (isSortable) {
+      return (
+        <th key={colId} className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
+          <button
+            onClick={() => onSort(colId as SortableColumnId)}
+            className="flex items-center gap-2 hover:text-emerald-600 transition-colors group"
+          >
+            <span>{labels[colId]}</span>
+            {isActiveSortColumn ? (
+              sortDirection === 'asc' ? (
+                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              )
+            ) : (
+              <svg className="w-4 h-4 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+            )}
+          </button>
+        </th>
+      );
+    }
+
     return (
       <th key={colId} className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
         {labels[colId]}
@@ -49,11 +88,17 @@ const SpecimenTable: React.FC<SpecimenTableProps> = ({ specimens, onClick, visib
                 />
               </div>
               <div>
-                <div className="text-sm font-bold text-slate-900 italic group-hover:text-emerald-700 transition-colors">
+                <div
+                  className="text-sm font-bold text-slate-900 italic group-hover:text-emerald-700 transition-colors"
+                  title={specimen.scientificName}
+                >
                   {specimen.scientificName}
                 </div>
                 {visibleColumns.indexOf('id') === -1 && (
-                   <div className="text-[10px] text-slate-400 font-mono uppercase tracking-tighter">
+                   <div
+                     className="text-[10px] text-slate-400 font-mono uppercase tracking-tighter"
+                     title={specimen.id}
+                   >
                     ID: {specimen.id.split('_')[1] || specimen.id}
                   </div>
                 )}
@@ -78,17 +123,27 @@ const SpecimenTable: React.FC<SpecimenTableProps> = ({ specimens, onClick, visib
       case 'locality':
         return (
           <td key={colId} className="px-6 py-4">
-            <div className="text-sm text-slate-600 truncate max-w-[200px]">
+            <div
+              className="text-sm text-slate-600 truncate max-w-[200px]"
+              title={`${specimen.locality.country}${specimen.locality.stateProvince ? `, ${specimen.locality.stateProvince}` : ''}`}
+            >
               {specimen.locality.country}{specimen.locality.stateProvince ? `, ${specimen.locality.stateProvince}` : ''}
             </div>
-            <div className="text-[10px] text-slate-400 truncate max-w-[200px]">
+            <div
+              className="text-[10px] text-slate-400 truncate max-w-[200px]"
+              title={specimen.locality.description}
+            >
               {specimen.locality.description}
             </div>
           </td>
         );
       case 'habitat':
         return (
-          <td key={colId} className="px-6 py-4 text-sm text-slate-500 italic max-w-[150px] truncate">
+          <td
+            key={colId}
+            className="px-6 py-4 text-sm text-slate-500 italic max-w-[150px] truncate"
+            title={specimen.locality.habitat || 'N/A'}
+          >
             {specimen.locality.habitat || 'N/A'}
           </td>
         );
