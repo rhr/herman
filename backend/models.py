@@ -1,0 +1,142 @@
+"""
+Database models for Herbarium Pro
+
+Note: Refactored to use auto-incrementing integer IDs for better performance
+and simpler references. UUIDs were removed in favor of BIGINT primary keys.
+"""
+from datetime import datetime
+from sqlalchemy import (
+    Column, String, Integer, BigInteger, Float, Text, DateTime,
+    ForeignKey, Table, Date, Index
+)
+from sqlalchemy.orm import relationship, declarative_base
+
+Base = declarative_base()
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    name = Column(String(255))
+    institution = Column(String(255))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    specimens = relationship("Specimen", back_populates="user", cascade="all, delete-orphan")
+    piles = relationship("Pile", back_populates="user", cascade="all, delete-orphan")
+    annotations = relationship("Annotation", back_populates="user")
+
+
+class Specimen(Base):
+    __tablename__ = "specimens"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    code = Column(String(50), nullable=False, index=True, unique=True)  # Legacy field: user-provided short unique identifier
+
+    # Specimen fields
+    scientific_name = Column(String(255))
+    family = Column(String(100), index=True)
+    genus = Column(String(100), index=True)
+    collector = Column(String(255), index=True)
+    collector_number = Column(String(100))  # Collector's number for this specimen
+    collection_date = Column(String(50))  # Flexible format: YYYY, YYYY-MM, or YYYY-MM-DD
+    description = Column(Text)
+    microhabitat = Column(Text)
+
+    # Locality fields (consolidated from localities table)
+    country = Column(String(100))
+    state_province = Column(String(100))
+    county_city = Column(String(100))
+    locality_description = Column(Text)
+    latitude = Column(String(50))   # Verbatim latitude (as entered)
+    longitude = Column(String(50))  # Verbatim longitude (as entered)
+    latdd = Column(Float, index=True)   # Parsed latitude in decimal degrees (for mapping)
+    londd = Column(Float, index=True)   # Parsed longitude in decimal degrees (for mapping)
+    elevation = Column(String(100))  # Elevation (e.g., "1200m", "3000-3500m", "4000 ft")
+    habitat = Column(Text)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="specimens")
+    images = relationship("Image", back_populates="specimen", cascade="all, delete-orphan", order_by="Image.position")
+    annotations = relationship("Annotation", back_populates="specimen", cascade="all, delete-orphan")
+    piles = relationship("Pile", secondary="pile_specimens", back_populates="specimens")
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_specimens_user', 'user_id'),
+        Index('idx_specimens_family', 'family'),
+        Index('idx_specimens_genus', 'genus'),
+        Index('idx_specimens_coordinates', 'latdd', 'londd'),  # Composite index for map queries
+    )
+
+
+class Image(Base):
+    __tablename__ = "images"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    specimen_id = Column(BigInteger, ForeignKey("specimens.id", ondelete="CASCADE"), nullable=False, index=True)
+    filename = Column(String(255), nullable=False)  # Original filename from upload
+    storage_filename = Column(String(255), nullable=False)  # UUID-based filename on disk
+    storage_path = Column(String(500), nullable=False)  # Relative path in uploads directory
+    url = Column(String(500), nullable=False)  # Public URL
+    caption = Column(Text)  # Optional caption for the image
+    mime_type = Column(String(50))
+    size_bytes = Column(Integer)
+    position = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    specimen = relationship("Specimen", back_populates="images")
+
+    __table_args__ = (
+        Index('idx_images_specimen', 'specimen_id'),
+    )
+
+
+class Pile(Base):
+    __tablename__ = "piles"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="piles")
+    specimens = relationship("Specimen", secondary="pile_specimens", back_populates="piles")
+
+
+# Association table for many-to-many relationship between piles and specimens
+pile_specimens = Table(
+    "pile_specimens",
+    Base.metadata,
+    Column("pile_id", BigInteger, ForeignKey("piles.id", ondelete="CASCADE"), primary_key=True),
+    Column("specimen_id", BigInteger, ForeignKey("specimens.id", ondelete="CASCADE"), primary_key=True),
+    Column("added_at", DateTime, default=datetime.utcnow)
+)
+
+
+class Annotation(Base):
+    __tablename__ = "annotations"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    specimen_id = Column(BigInteger, ForeignKey("specimens.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    text = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    specimen = relationship("Specimen", back_populates="annotations")
+    user = relationship("User", back_populates="annotations")
+
+    __table_args__ = (
+        Index('idx_annotations_specimen', 'specimen_id'),
+    )

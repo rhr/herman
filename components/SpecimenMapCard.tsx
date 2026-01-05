@@ -8,7 +8,7 @@ interface SpecimenMapCardProps {
 }
 
 const SpecimenMapCard: React.FC<SpecimenMapCardProps> = ({ specimen, isSelected, onClick }) => {
-  const hasCoordinates = specimen.locality.latitude != null && specimen.locality.longitude != null;
+  const hasCoordinates = specimen.latdd != null && specimen.londd != null;
   const imageUrl = specimen.imageUrls[0] || 'https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?auto=format&fit=crop&q=80&w=800';
 
   return (
@@ -30,7 +30,7 @@ const SpecimenMapCard: React.FC<SpecimenMapCardProps> = ({ specimen, isSelected,
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="flex items-start justify-between gap-2 mb-1">
             <h3 className="font-bold text-slate-900 italic text-sm leading-tight">
               {specimen.scientificName}
             </h3>
@@ -51,6 +51,10 @@ const SpecimenMapCard: React.FC<SpecimenMapCardProps> = ({ specimen, isSelected,
               </svg>
             )}
           </div>
+
+          {specimen.code && (
+            <p className="text-xs font-mono text-slate-400 mb-1">Code: {specimen.code}</p>
+          )}
 
           <span className="inline-block px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full mb-2">
             {specimen.family}
@@ -73,7 +77,7 @@ const SpecimenMapCard: React.FC<SpecimenMapCardProps> = ({ specimen, isSelected,
                 />
               </svg>
               <span className="truncate">
-                {specimen.locality.description || `${specimen.locality.country}, ${specimen.locality.stateProvince}`}
+                {specimen.localityDescription || `${specimen.country}, ${specimen.stateProvince}`}
               </span>
             </p>
             <p className="flex items-center gap-1">

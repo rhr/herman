@@ -7,19 +7,25 @@ import SpecimenDetail from './components/SpecimenDetail';
 import SpecimenTable, { ColumnId, SortableColumnId, SortDirection } from './components/SpecimenTable';
 import PileSidebar from './components/PileSidebar';
 import ActionHistory from './components/ActionHistory';
+import AuthModal from './components/AuthModal';
 import Button from './components/Button';
 import MapView from './components/MapView';
 import SpecimenMapCard from './components/SpecimenMapCard';
 import { DatabaseService } from './services/databaseService';
+import { apiClient } from './services/apiClient';
 
 const ALL_COLUMNS: { id: ColumnId; label: string }[] = [
   { id: 'specimen', label: 'Specimen Info' },
+  { id: 'code', label: 'Code' },
   { id: 'family', label: 'Family' },
   { id: 'genus', label: 'Genus' },
   { id: 'locality', label: 'Locality' },
   { id: 'habitat', label: 'Habitat' },
   { id: 'collector', label: 'Collector' },
+  { id: 'collectorNumber', label: 'Collector Number' },
   { id: 'date', label: 'Date' },
+  { id: 'createdAt', label: 'Created' },
+  { id: 'updatedAt', label: 'Modified' },
   { id: 'id', label: 'Database ID' },
 ];
 
@@ -28,14 +34,14 @@ const App: React.FC = () => {
   const [piles, setPiles] = useState<Pile[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [activePileId, setActivePileId] = useState<string | null>(null);
+  const [activePileId, setActivePileId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<'gallery' | 'add' | 'detail' | 'edit'>('gallery');
   const [layout, setLayout] = useState<'grid' | 'table' | 'map'>(() => {
     const saved = localStorage.getItem('layout');
     return (saved as 'grid' | 'table' | 'map') || 'grid';
   });
-  const [selectedSpecimenId, setSelectedSpecimenId] = useState<string | null>(null);
+  const [selectedSpecimenId, setSelectedSpecimenId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(() => {
     const saved = localStorage.getItem('visibleColumns');
@@ -54,6 +60,12 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('sortDirection');
     return (saved as SortDirection) || 'asc';
   });
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
   const columnPickerRef = useRef<HTMLDivElement>(null);
 
   // Load specimens and piles from "database" on mount
@@ -111,25 +123,103 @@ const App: React.FC = () => {
     localStorage.setItem('sortDirection', sortDirection);
   }, [sortDirection]);
 
-  const loadData = async () => {
+  // Check authentication status on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (!apiClient.isAuthenticated()) {
+        setShowAuthModal(true);
+        setIsLoading(false);
+      } else {
+        try {
+          const user = await apiClient.getCurrentUser();
+          setCurrentUser(user);
+          loadData();
+        } catch (error) {
+          console.error('Authentication check failed:', error);
+          setShowAuthModal(true);
+          setIsLoading(false);
+        }
+      }
+    };
+    checkAuth();
+  }, []);
+
+  // Reload data when search query changes (with debounce and reset to page 1)
+  useEffect(() => {
+    if (!apiClient.isAuthenticated()) return;
+
+    const timeoutId = setTimeout(() => {
+      loadData(1, searchQuery);
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  // Reload data when sort parameters change
+  useEffect(() => {
+    if (!apiClient.isAuthenticated()) return;
+    if (!sortColumn) return; // Don't reload if no sort column selected
+
+    loadData(currentPage, searchQuery, sortColumn, sortDirection);
+  }, [sortColumn, sortDirection]);
+
+  const loadData = async (
+    page: number = currentPage,
+    search?: string,
+    sortBy?: string,
+    sortDir?: 'asc' | 'desc'
+  ) => {
+    if (!apiClient.isAuthenticated()) {
+      setShowAuthModal(true);
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const [specimenData, pileData] = await Promise.all([
-        DatabaseService.getAllSpecimens(),
+      console.log('Loading data...');
+      const currentSearch = search !== undefined ? search : searchQuery;
+      const currentSortBy = sortBy !== undefined ? sortBy : (sortColumn || undefined);
+      const currentSortDir = sortDir !== undefined ? sortDir : sortDirection;
+
+      const [specimenResponse, pileData] = await Promise.all([
+        DatabaseService.getAllSpecimens(page, pageSize, currentSearch || undefined, currentSortBy, currentSortDir),
         DatabaseService.getAllPiles()
       ]);
-      setSpecimens(specimenData);
+      console.log('Data loaded successfully:', {
+        specimens: specimenResponse.specimens.length,
+        total: specimenResponse.pagination.total,
+        page: specimenResponse.pagination.page,
+        search: currentSearch,
+        sortBy: currentSortBy,
+        sortDir: currentSortDir,
+        piles: pileData.length
+      });
+      setSpecimens(specimenResponse.specimens);
+      setTotalPages(specimenResponse.pagination.totalPages);
+      setTotalItems(specimenResponse.pagination.total);
+      setCurrentPage(specimenResponse.pagination.page);
       setPiles(pileData);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to load data:", error);
+      console.error("Error details:", { message: error.message, stack: error.stack });
+      if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+        // Token expired or invalid
+        console.log('Auth error detected, logging out');
+        apiClient.logout();
+        setShowAuthModal(true);
+      } else {
+        // Show error to user for other errors
+        alert(`Failed to load data: ${error.message || 'Unknown error'}. Check console for details.`);
+      }
     } finally {
+      console.log('Setting isLoading to false');
       setIsLoading(false);
     }
   };
 
   const pushHistory = (type: ActionType, description: string, data: any) => {
     const entry: HistoryEntry = {
-      id: `hist_${Date.now()}`,
+      id: Date.now(), // Use timestamp as integer ID for history entries
       type,
       description,
       timestamp: Date.now(),
@@ -209,87 +299,53 @@ const App: React.FC = () => {
   const activePile = useMemo(() => piles.find(p => p.id === activePileId), [piles, activePileId]);
 
   const filteredSpecimens = useMemo(() => {
-    let base = specimens;
+    // Server-side search and sorting are already applied
+    // Only need to filter by pile if active
+    let filtered = specimens;
     if (activePileId) {
       const targetPile = piles.find(p => p.id === activePileId);
       if (targetPile) {
-        base = specimens.filter(s => targetPile.specimenIds.includes(s.id));
+        filtered = specimens.filter(s => targetPile.specimenIds.includes(s.id));
       }
     }
 
-    let filtered = base.filter(s =>
-      s.scientificName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.family.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.collector.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    // Apply sorting
-    if (sortColumn) {
-      filtered = [...filtered].sort((a, b) => {
-        let aVal: string | number = '';
-        let bVal: string | number = '';
-
-        switch (sortColumn) {
-          case 'id':
-            aVal = a.id;
-            bVal = b.id;
-            break;
-          case 'family':
-            aVal = a.family.toLowerCase();
-            bVal = b.family.toLowerCase();
-            break;
-          case 'genus':
-            aVal = (a.genus || a.scientificName.split(' ')[0]).toLowerCase();
-            bVal = (b.genus || b.scientificName.split(' ')[0]).toLowerCase();
-            break;
-          case 'collector':
-            aVal = a.collector.toLowerCase();
-            bVal = b.collector.toLowerCase();
-            break;
-          case 'date':
-            aVal = a.collectionDate;
-            bVal = b.collectionDate;
-            break;
-        }
-
-        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-
     return filtered;
-  }, [specimens, searchQuery, activePileId, piles, sortColumn, sortDirection]);
+  }, [specimens, activePileId, piles]);
 
   const activeSpecimen = useMemo(() => {
     return specimens.find(s => s.id === selectedSpecimenId);
   }, [specimens, selectedSpecimenId]);
 
-  const handleSaveSpecimen = async (data: any, id?: string) => {
+  const handleSaveSpecimen = async (data: any, id?: number) => {
     const isEditing = !!id;
     const existingSpecimen = isEditing ? specimens.find(s => s.id === id) : null;
 
-    const specimenData: Specimen = {
-      id: id || `specimen_${Date.now()}`,
+    const specimenData: Specimen & { images?: File[] } = {
+      id: id || 0, // Temporary ID, will be replaced by API response
+      code: data.code || '',
       scientificName: data.scientificName || 'Unknown',
       family: data.family || 'Unknown',
       genus: data.genus || '',
       collector: data.collector || 'Anonymous',
-      collectionDate: data.collectionDate || new Date().toISOString().split('T')[0],
-      locality: {
-        country: data.country || '',
-        stateProvince: data.stateProvince || '',
-        countyCity: data.countyCity || '',
-        description: data.localityDescription || 'No description',
-        latitude: parseFloat(data.latitude) || undefined,
-        longitude: parseFloat(data.longitude) || undefined,
-        habitat: data.habitat || ''
-      },
+      collectorNumber: data.collectorNumber || '',
+      collectionDate: data.collectionDate || '',
+      // Flattened locality fields
+      country: data.country || '',
+      stateProvince: data.stateProvince || '',
+      countyCity: data.countyCity || '',
+      localityDescription: data.localityDescription || '',
+      latitude: data.latitude || '',
+      longitude: data.longitude || '',
+      latdd: parseFloat(data.latitude) || undefined,
+      londd: parseFloat(data.longitude) || undefined,
+      elevation: data.elevation || '',
+      habitat: data.habitat || '',
       imageUrls: data.imageUrls || [],
       description: data.description || '',
       microhabitat: data.microhabitat || '',
       annotations: existingSpecimen?.annotations || [],
-      tags: existingSpecimen?.tags || []
+      tags: existingSpecimen?.tags || [],
+      images: data.images || [] // Include File objects from form
     };
 
     if (isEditing) {
@@ -308,6 +364,8 @@ const App: React.FC = () => {
     try {
       if (isEditing) {
         await DatabaseService.updateSpecimen(specimenData);
+        // Reload data after update to get actual image URLs from server
+        await loadData();
       } else {
         await DatabaseService.saveSpecimen(specimenData);
       }
@@ -320,7 +378,7 @@ const App: React.FC = () => {
 
   const handleCreatePile = async (name: string, description: string) => {
     const newPile: Pile = {
-      id: `pile_${Date.now()}`,
+      id: 0, // Temporary ID, will be replaced by API response
       name,
       description,
       specimenIds: [],
@@ -331,7 +389,7 @@ const App: React.FC = () => {
     await DatabaseService.savePile(newPile);
   };
 
-  const handleDeletePile = async (id: string) => {
+  const handleDeletePile = async (id: number) => {
     const pileToDelete = piles.find(p => p.id === id);
     if (!pileToDelete) return;
     if (!confirm("Delete this pile? Specimens will not be deleted.")) return;
@@ -353,7 +411,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAddSpecimenToPile = async (pileId: string, specimenId: string) => {
+  const handleAddSpecimenToPile = async (pileId: number, specimenId: number) => {
     const pile = piles.find(p => p.id === pileId);
     const specimen = specimens.find(s => s.id === specimenId);
     if (!pile || !specimen || pile.specimenIds.includes(specimenId)) return;
@@ -373,7 +431,7 @@ const App: React.FC = () => {
     await DatabaseService.addSpecimenToPile(pileId, specimenId);
   };
 
-  const handleRemoveSpecimenFromPile = async (pileId: string, specimenId: string) => {
+  const handleRemoveSpecimenFromPile = async (pileId: number, specimenId: number) => {
     const pile = piles.find(p => p.id === pileId);
     const specimen = specimens.find(s => s.id === specimenId);
     if (!pile || !specimen || !pile.specimenIds.includes(specimenId)) return;
@@ -393,7 +451,7 @@ const App: React.FC = () => {
     await DatabaseService.removeSpecimenFromPile(pileId, specimenId);
   };
 
-  const handleTogglePile = async (pileId: string, specimenId: string) => {
+  const handleTogglePile = async (pileId: number, specimenId: number) => {
     const pile = piles.find(p => p.id === pileId);
     if (!pile) return;
 
@@ -405,23 +463,57 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAddAnnotation = async (specimenId: string, annotation: Annotation) => {
-    setSpecimens(prev => prev.map(s => 
-      s.id === specimenId 
-        ? { ...s, annotations: [annotation, ...s.annotations] } 
+  const handleAddAnnotation = async (specimenId: number, annotation: Annotation) => {
+    const tempId = annotation.id; // Store temporary ID
+
+    // Optimistically add annotation with temporary ID
+    setSpecimens(prev => prev.map(s =>
+      s.id === specimenId
+        ? { ...s, annotations: [annotation, ...s.annotations] }
         : s
     ));
 
-    pushHistory('ADD_ANNOTATION', `Added annotation to specimen`, { specimenId, annotationId: annotation.id });
-
     try {
-      await DatabaseService.addAnnotation(specimenId, annotation);
+      // Save to database and get the real annotation with DB ID
+      const savedAnnotation = await DatabaseService.addAnnotation(specimenId, annotation);
+
+      // Replace the temporary annotation with the real one from the database
+      setSpecimens(prev => prev.map(s =>
+        s.id === specimenId
+          ? {
+              ...s,
+              annotations: s.annotations.map(a =>
+                a.id === tempId ? savedAnnotation : a
+              )
+            }
+          : s
+      ));
+
+      pushHistory('ADD_ANNOTATION', `Added annotation to specimen`, { specimenId, annotationId: savedAnnotation.id });
     } catch (error) {
       console.error("Failed to save annotation:", error);
+      // Remove the optimistically added annotation on error
+      setSpecimens(prev => prev.map(s =>
+        s.id === specimenId
+          ? { ...s, annotations: s.annotations.filter(a => a.id !== tempId) }
+          : s
+      ));
+      alert('Failed to save annotation. Please try again.');
     }
   };
 
-  const handleDeleteSpecimen = async (id: string) => {
+  const handleDeleteAnnotation = (specimenId: string, annotationId: number) => {
+    const numericId = typeof specimenId === 'string' ? parseInt(specimenId) : specimenId;
+
+    // Update specimens array - activeSpecimen will automatically update via useMemo
+    setSpecimens(prev => prev.map(s =>
+      s.id === numericId
+        ? { ...s, annotations: s.annotations.filter(a => a.id !== annotationId) }
+        : s
+    ));
+  };
+
+  const handleDeleteSpecimen = async (id: number) => {
     const specimenToDelete = specimens.find(s => s.id === id);
     if (!specimenToDelete) return;
     if (!confirm("Are you sure you want to delete this specimen?")) return;
@@ -439,7 +531,7 @@ const App: React.FC = () => {
     }
   };
 
-  const openSpecimen = (id: string) => {
+  const openSpecimen = (id: number) => {
     setSelectedSpecimenId(id);
     setView('detail');
   };
@@ -457,7 +549,7 @@ const App: React.FC = () => {
     });
   };
 
-  const handleMapMarkerClick = (id: string) => {
+  const handleMapMarkerClick = (id: number) => {
     setSelectedSpecimenId(id);
   };
 
@@ -472,14 +564,44 @@ const App: React.FC = () => {
     }
   };
 
+  const handleAuthSuccess = (user: any) => {
+    console.log('Authentication successful:', user);
+    setCurrentUser(user);
+    setShowAuthModal(false);
+    console.log('Calling loadData after auth success');
+    loadData();
+  };
+
+  const handleLogout = () => {
+    apiClient.logout();
+    setCurrentUser(null);
+    setSpecimens([]);
+    setPiles([]);
+    setShowAuthModal(true);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      loadData(newPage);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
-      <ActionHistory 
-        history={history} 
-        isOpen={isHistoryOpen} 
-        onClose={() => setIsHistoryOpen(false)} 
-        onUndo={handleUndo} 
+      <ActionHistory
+        history={history}
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        onUndo={handleUndo}
       />
+
+      {/* Authentication Modal */}
+      {showAuthModal && (
+        <AuthModal
+          onClose={() => setShowAuthModal(false)}
+          onSuccess={handleAuthSuccess}
+        />
+      )}
 
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
@@ -509,7 +631,7 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
-            <button 
+            <button
               onClick={() => setIsHistoryOpen(true)}
               className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all relative"
               title="View History"
@@ -521,6 +643,24 @@ const App: React.FC = () => {
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
               )}
             </button>
+            {currentUser && (
+              <>
+                <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg">
+                  <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span className="text-sm font-medium text-slate-700">
+                    {currentUser.name || currentUser.email}
+                  </span>
+                </div>
+                <Button variant="outline" onClick={handleLogout}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  <span className="hidden sm:inline">Logout</span>
+                </Button>
+              </>
+            )}
             <Button variant="primary" onClick={() => setView('add')}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -587,7 +727,8 @@ const App: React.FC = () => {
                         </h2>
                         <p className="text-slate-500 mt-1">
                           {activePile ? (activePile.description || 'Virtual collection of selected specimens') : 'Curated primary database'}
-                          • Found {filteredSpecimens.length} items
+                          • {totalItems} total specimens
+                          {searchQuery && ` • Showing ${filteredSpecimens.length} matches`}
                         </p>
                       </div>
                     </div>
@@ -659,6 +800,49 @@ const App: React.FC = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 mb-6">
+                      <button
+                        onClick={() => handlePageChange(1)}
+                        disabled={currentPage === 1}
+                        className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
+                        title="First page"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
+                      >
+                        Previous
+                      </button>
+                      <span className="px-4 py-2 text-sm font-medium text-slate-700">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
+                      >
+                        Next
+                      </button>
+                      <button
+                        onClick={() => handlePageChange(totalPages)}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
+                        title="Last page"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
 
                   {filteredSpecimens.length > 0 ? (
                     layout === 'map' ? (
@@ -737,11 +921,12 @@ const App: React.FC = () => {
             )}
 
             {view === 'detail' && activeSpecimen && (
-              <SpecimenDetail 
-                specimen={activeSpecimen} 
+              <SpecimenDetail
+                specimen={activeSpecimen}
                 onBack={() => setView('gallery')}
                 onEdit={() => setView('edit')}
                 onAddAnnotation={handleAddAnnotation}
+                onDeleteAnnotation={handleDeleteAnnotation}
                 onDelete={() => handleDeleteSpecimen(activeSpecimen.id)}
                 piles={piles}
                 onTogglePile={handleTogglePile}

@@ -5,14 +5,14 @@ import { formatCollectionDate } from '../utils/formatters';
 
 interface SpecimenCardProps {
   specimen: Specimen;
-  onClick: (id: string) => void;
+  onClick: (id: number) => void;
 }
 
 const SpecimenCard: React.FC<SpecimenCardProps> = ({ specimen, onClick }) => {
   const primaryImage = specimen.imageUrls?.[0] || 'https://via.placeholder.com/300x400?text=No+Image';
 
   const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData('specimenId', specimen.id);
+    e.dataTransfer.setData('specimenId', specimen.id.toString());
     e.dataTransfer.effectAllowed = 'move';
     // Add a slight transparency to the drag ghost
     const target = e.target as HTMLElement;
@@ -51,10 +51,15 @@ const SpecimenCard: React.FC<SpecimenCardProps> = ({ specimen, onClick }) => {
       </div>
       <div className="p-4 pointer-events-none">
         <h3 className="font-bold text-slate-900 truncate italic">{specimen.scientificName}</h3>
-        <p className="text-sm text-slate-500 truncate">{specimen.locality.description}</p>
+        {specimen.code && (
+          <p className="text-xs font-mono text-slate-400 truncate">Code: {specimen.code}</p>
+        )}
+        <p className="text-sm text-slate-500 truncate">
+          {specimen.localityDescription || `${specimen.country || ''}${specimen.country && specimen.stateProvince ? ', ' : ''}${specimen.stateProvince || ''}`}
+        </p>
         <div className="mt-3 flex items-center justify-between">
           <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
-            {specimen.collector}
+            {specimen.collector}{specimen.collectorNumber ? ` #${specimen.collectorNumber}` : ''}
           </span>
           <span className="text-xs text-slate-400">
             {formatCollectionDate(specimen.collectionDate)}

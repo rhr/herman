@@ -1,0 +1,101 @@
+[
+  {
+    "scientific_name": "Quercus alba",
+    "family": "Fagaceae",
+    "genus": "Quercus",
+    "collector": "John Smith",
+    "collection_date": "2024-06-15",
+    "description": "White oak specimen from forest edge",
+    "microhabitat": "Near stream bank",
+    "country": "USA",
+    "state_province": "Michigan",
+    "county_city": "Washtenaw County",
+    "locality_description": "University of Michigan Biological Station",
+    "latitude": 45.5591,
+    "longitude": -84.6747,
+    "habitat": "Deciduous forest",
+    "image_paths": [
+      "/path/to/images/quercus_alba_001.jpg",
+      "/path/to/images/quercus_alba_002.jpg"
+    ]
+  },
+  {
+    "scientific_name": "Acer saccharum",
+    "family": "Sapindaceae",
+    "genus": "Acer",
+    "collector": "Jane Doe",
+    "collection_date": "2024-07-20",
+    "description": "Sugar maple from mature forest",
+    "microhabitat": "Forest understory",
+    "country": "USA",
+    "state_province": "Michigan",
+    "county_city": "Oakland County",
+    "locality_description": "Rouge Park",
+    "latitude": 42.5803,
+    "longitude": -83.4729,
+    "habitat": "Mixed deciduous forest",
+    "image_paths": [
+      "/path/to/images/acer_saccharum_001.jpg"
+    ]
+  },
+  {
+    "scientific_name": "Trillium grandiflorum",
+    "family": "Melanthiaceae",
+    "genus": "Trillium",
+    "collector": "Bob Wilson",
+    "collection_date": "2024-04-10",
+    "description": "Large white trillium in spring bloom",
+    "microhabitat": "Moist forest floor",
+    "country": "USA",
+    "state_province": "Michigan",
+    "county_city": "Livingston County",
+    "locality_description": "Pinckney Recreation Area",
+    "latitude": 42.4667,
+    "longitude": -83.9667,
+    "habitat": "Mesic hardwood forest",
+    "image_paths": [
+      "/path/to/images/trillium_001.jpg",
+      "/path/to/images/trillium_002.jpg",
+      "/path/to/images/trillium_003.jpg"
+    ]
+  },
+  {
+    "scientific_name": "Viola sororia",
+    "family": "Violaceae",
+    "genus": "Viola",
+    "collector": "Alice Johnson",
+    "collection_date": "2024-05-05",
+    "description": "Common blue violet",
+    "microhabitat": "Lawn edge near woodland",
+    "country": "USA",
+    "state_province": "Ohio",
+    "county_city": "Franklin County",
+    "locality_description": "Columbus Metro Park",
+    "latitude": 40.0150,
+    "longitude": -83.0480,
+    "habitat": "Disturbed grassland",
+    "image_paths": [
+      "/path/to/images/viola_001.jpg"
+    ]
+  },
+  {
+    "scientific_name": "Solidago canadensis",
+    "family": "Asteraceae",
+    "genus": "Solidago",
+    "collector": "Mike Brown",
+    "collection_date": "2024-08-22",
+    "description": "Canada goldenrod in full bloom",
+    "microhabitat": "Open meadow",
+    "country": "USA",
+    "state_province": "New York",
+    "county_city": "Tompkins County",
+    "locality_description": "Ithaca State Park",
+    "latitude": 42.4430,
+    "longitude": -76.5019,
+    "habitat": "Old field meadow",
+    "image_paths": [
+      "/path/to/images/solidago_001.jpg",
+      "/path/to/images/solidago_002.jpg"
+    ]
+  }
+]

@@ -3,13 +3,13 @@ import React from 'react';
 import { Specimen } from '../types';
 import { formatCollectionDate } from '../utils/formatters';
 
-export type ColumnId = 'specimen' | 'family' | 'genus' | 'locality' | 'habitat' | 'collector' | 'date' | 'id';
-export type SortableColumnId = 'id' | 'family' | 'genus' | 'collector' | 'date';
+export type ColumnId = 'specimen' | 'code' | 'family' | 'genus' | 'locality' | 'habitat' | 'collector' | 'collectorNumber' | 'date' | 'createdAt' | 'updatedAt' | 'id';
+export type SortableColumnId = 'id' | 'family' | 'genus' | 'collector' | 'collectorNumber' | 'date' | 'createdAt' | 'updatedAt';
 export type SortDirection = 'asc' | 'desc';
 
 interface SpecimenTableProps {
   specimens: Specimen[];
-  onClick: (id: string) => void;
+  onClick: (id: number) => void;
   visibleColumns: ColumnId[];
   sortColumn: SortableColumnId | null;
   sortDirection: SortDirection;
@@ -17,22 +17,26 @@ interface SpecimenTableProps {
 }
 
 const SpecimenTable: React.FC<SpecimenTableProps> = ({ specimens, onClick, visibleColumns, sortColumn, sortDirection, onSort }) => {
-  const handleDragStart = (e: React.DragEvent, id: string) => {
-    e.dataTransfer.setData('specimenId', id);
+  const handleDragStart = (e: React.DragEvent, id: number) => {
+    e.dataTransfer.setData('specimenId', id.toString());
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const sortableColumns: SortableColumnId[] = ['id', 'family', 'genus', 'collector', 'date'];
+  const sortableColumns: SortableColumnId[] = ['id', 'family', 'genus', 'collector', 'collectorNumber', 'date', 'createdAt', 'updatedAt'];
 
   const renderHeader = (colId: ColumnId) => {
     const labels: Record<ColumnId, string> = {
       specimen: 'Specimen',
+      code: 'Code',
       family: 'Family',
       genus: 'Genus',
       locality: 'Locality',
       habitat: 'Habitat',
       collector: 'Collector',
+      collectorNumber: 'Collector #',
       date: 'Date',
+      createdAt: 'Created',
+      updatedAt: 'Modified',
       id: 'ID'
     };
 
@@ -97,13 +101,21 @@ const SpecimenTable: React.FC<SpecimenTableProps> = ({ specimens, onClick, visib
                 {visibleColumns.indexOf('id') === -1 && (
                    <div
                      className="text-[10px] text-slate-400 font-mono uppercase tracking-tighter"
-                     title={specimen.id}
+                     title={String(specimen.id)}
                    >
-                    ID: {specimen.id.split('_')[1] || specimen.id}
+                    ID: {specimen.id}
                   </div>
                 )}
               </div>
             </div>
+          </td>
+        );
+      case 'code':
+        return (
+          <td key={colId} className="px-6 py-4">
+            <span className="text-xs font-mono text-slate-600">
+              {specimen.code || '—'}
+            </span>
           </td>
         );
       case 'family':
@@ -125,15 +137,15 @@ const SpecimenTable: React.FC<SpecimenTableProps> = ({ specimens, onClick, visib
           <td key={colId} className="px-6 py-4">
             <div
               className="text-sm text-slate-600 truncate max-w-[200px]"
-              title={`${specimen.locality.country}${specimen.locality.stateProvince ? `, ${specimen.locality.stateProvince}` : ''}`}
+              title={`${specimen.country || ''}${specimen.stateProvince ? `, ${specimen.stateProvince}` : ''}`}
             >
-              {specimen.locality.country}{specimen.locality.stateProvince ? `, ${specimen.locality.stateProvince}` : ''}
+              {specimen.country || ''}{specimen.stateProvince ? `, ${specimen.stateProvince}` : ''}
             </div>
             <div
               className="text-[10px] text-slate-400 truncate max-w-[200px]"
-              title={specimen.locality.description}
+              title={specimen.localityDescription || ''}
             >
-              {specimen.locality.description}
+              {specimen.localityDescription || ''}
             </div>
           </td>
         );
@@ -142,9 +154,9 @@ const SpecimenTable: React.FC<SpecimenTableProps> = ({ specimens, onClick, visib
           <td
             key={colId}
             className="px-6 py-4 text-sm text-slate-500 italic max-w-[150px] truncate"
-            title={specimen.locality.habitat || 'N/A'}
+            title={specimen.habitat || 'N/A'}
           >
-            {specimen.locality.habitat || 'N/A'}
+            {specimen.habitat || 'N/A'}
           </td>
         );
       case 'collector':
@@ -153,10 +165,40 @@ const SpecimenTable: React.FC<SpecimenTableProps> = ({ specimens, onClick, visib
             <div className="text-sm font-medium text-slate-700">{specimen.collector}</div>
           </td>
         );
+      case 'collectorNumber':
+        return (
+          <td key={colId} className="px-6 py-4">
+            <div className="text-sm text-slate-600">{specimen.collectorNumber || '—'}</div>
+          </td>
+        );
       case 'date':
         return (
           <td key={colId} className="px-6 py-4 text-sm text-slate-500">
             {formatCollectionDate(specimen.collectionDate)}
+          </td>
+        );
+      case 'createdAt':
+        return (
+          <td key={colId} className="px-6 py-4 text-xs text-slate-500">
+            {specimen.createdAt ? new Date(specimen.createdAt).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            }) : '—'}
+          </td>
+        );
+      case 'updatedAt':
+        return (
+          <td key={colId} className="px-6 py-4 text-xs text-slate-500">
+            {specimen.updatedAt ? new Date(specimen.updatedAt).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            }) : '—'}
           </td>
         );
       case 'id':

@@ -1,0 +1,6 @@
+scientific_name,family,genus,collector,collection_date,description,microhabitat,country,state_province,county_city,locality_description,latitude,longitude,habitat,image_filenames
+Quercus alba,Fagaceae,Quercus,John Smith,2024-06-15,White oak specimen from forest edge,Near stream bank,USA,Michigan,Washtenaw County,University of Michigan Biological Station,45.5591,-84.6747,Deciduous forest,quercus_alba_001.jpg,quercus_alba_002.jpg
+Acer saccharum,Sapindaceae,Acer,Jane Doe,2024-07-20,Sugar maple from mature forest,Forest understory,USA,Michigan,Oakland County,Rouge Park,42.5803,-83.4729,Mixed deciduous forest,acer_saccharum_001.jpg
+Trillium grandiflorum,Melanthiaceae,Trillium,Bob Wilson,2024-04-10,Large white trillium in spring bloom,Moist forest floor,USA,Michigan,Livingston County,Pinckney Recreation Area,42.4667,-83.9667,Mesic hardwood forest,trillium_001.jpg,trillium_002.jpg,trillium_003.jpg
+Viola sororia,Violaceae,Viola,Alice Johnson,2024-05-05,Common blue violet,Lawn edge near woodland,USA,Ohio,Franklin County,Columbus Metro Park,40.0150,-83.0480,Disturbed grassland,viola_001.jpg
+Solidago canadensis,Asteraceae,Solidago,Mike Brown,2024-08-22,Canada goldenrod in full bloom,Open meadow,USA,New York,Tompkins County,Ithaca State Park,42.4430,-76.5019,Old field meadow,solidago_001.jpg,solidago_002.jpg

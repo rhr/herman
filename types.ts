@@ -1,49 +1,65 @@
 
-export interface Locality {
-  latitude?: number;
-  longitude?: number;
-  country: string;
-  stateProvince: string;
-  countyCity: string;
-  description: string;
-  habitat?: string;
-}
-
 export interface Annotation {
-  id: string;
+  id: number;
   text: string;
   author: string;
   timestamp: number;
 }
 
+export interface Image {
+  id: number;
+  filename: string;
+  url: string;
+  caption?: string;
+  position: number;
+}
+
 export interface Pile {
-  id: string;
+  id: number;
   name: string;
   description: string;
-  specimenIds: string[];
+  specimenIds: number[];
   createdAt: number;
 }
 
 export interface Specimen {
-  id: string;
+  id: number;
+  code?: string;
   scientificName: string;
   family: string;
   genus: string;
   collector: string;
+  collectorNumber?: string;
   collectionDate: string;
-  locality: Locality;
+  // Locality fields (flattened)
+  country?: string;
+  stateProvince?: string;
+  countyCity?: string;
+  localityDescription?: string;
+  latitude?: string;   // Verbatim latitude (as entered)
+  longitude?: string;  // Verbatim longitude (as entered)
+  latdd?: number;      // Decimal degrees latitude (for mapping)
+  londd?: number;      // Decimal degrees longitude (for mapping)
+  elevation?: string;  // Elevation
+  habitat?: string;
+  // Other fields
   imageUrls: string[];
+  images?: Image[];  // Full image objects with IDs for managing primary image
   description: string;
   microhabitat?: string;
   annotations: Annotation[];
   tags: string[];
+  createdAt?: string;  // ISO date string from backend
+  updatedAt?: string;  // ISO date string from backend
 }
 
 export interface SpecimenFormData {
+  code: string;
   scientificName: string;
   family: string;
   genus: string;
   collector: string;
+  collectorNumber: string;
   collectionDate: string;
   country: string;
   stateProvince: string;
@@ -51,6 +67,7 @@ export interface SpecimenFormData {
   localityDescription: string;
   latitude: string;
   longitude: string;
+  elevation: string;
   habitat: string;
   microhabitat: string;
   description: string;
@@ -68,7 +85,7 @@ export type ActionType =
   | 'ADD_ANNOTATION';
 
 export interface HistoryEntry {
-  id: string;
+  id: number;
   type: ActionType;
   description: string;
   timestamp: number;

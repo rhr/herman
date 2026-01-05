@@ -27,7 +27,7 @@ const SpecimenPopup: React.FC<SpecimenPopupProps> = ({ specimen }) => {
             {specimen.collector}
           </p>
           <p className="text-xs text-slate-400 mt-1">
-            {specimen.locality.country}, {specimen.locality.stateProvince}
+            {specimen.country}, {specimen.stateProvince}
           </p>
         </div>
       </div>

@@ -5,12 +5,12 @@ import Button from './Button';
 
 interface PileSidebarProps {
   piles: Pile[];
-  activePileId: string | null;
-  onSelectPile: (id: string | null) => void;
+  activePileId: number | null;
+  onSelectPile: (id: number | null) => void;
   onCreatePile: (name: string, description: string) => void;
-  onDeletePile: (id: string) => void;
-  onDropSpecimen: (pileId: string, specimenId: string) => void;
-  onRemoveFromPile: (pileId: string, specimenId: string) => void;
+  onDeletePile: (id: number) => void;
+  onDropSpecimen: (pileId: number, specimenId: number) => void;
+  onRemoveFromPile: (pileId: number, specimenId: number) => void;
   onReorderPiles: (reorderedPiles: Pile[]) => void;
 }
 
@@ -26,9 +26,9 @@ const PileSidebar: React.FC<PileSidebarProps> = ({
 }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState('');
-  const [dragOverPileId, setDragOverPileId] = useState<string | null>(null);
+  const [dragOverPileId, setDragOverPileId] = useState<number | null>(null);
   const [isDraggingOverAll, setIsDraggingOverAll] = useState(false);
-  const [draggingPileId, setDraggingPileId] = useState<string | null>(null);
+  const [draggingPileId, setDraggingPileId] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const handleCreate = (e: React.FormEvent) => {
@@ -54,12 +54,13 @@ const PileSidebar: React.FC<PileSidebarProps> = ({
     setIsDraggingOverAll(false);
   };
 
-  const handleDrop = (e: React.DragEvent, pileId: string | 'all') => {
+  const handleDrop = (e: React.DragEvent, pileId: number | 'all') => {
     e.preventDefault();
     setDragOverPileId(null);
     setIsDraggingOverAll(false);
-    const specimenId = e.dataTransfer.getData('specimenId');
-    if (!specimenId) return;
+    const specimenIdStr = e.dataTransfer.getData('specimenId');
+    if (!specimenIdStr) return;
+    const specimenId = parseInt(specimenIdStr, 10);
 
     if (pileId === 'all') {
       if (activePileId) {
@@ -71,10 +72,10 @@ const PileSidebar: React.FC<PileSidebarProps> = ({
   };
 
   // Pile reordering handlers
-  const handlePileDragStart = (e: React.DragEvent, pileId: string) => {
+  const handlePileDragStart = (e: React.DragEvent, pileId: number) => {
     setDraggingPileId(pileId);
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('pileId', pileId);
+    e.dataTransfer.setData('pileId', pileId.toString());
   };
 
   const handlePileDragOver = (e: React.DragEvent, index: number) => {
@@ -93,9 +94,10 @@ const PileSidebar: React.FC<PileSidebarProps> = ({
 
   const handlePileDrop = (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
-    const draggedPileId = e.dataTransfer.getData('pileId');
+    const draggedPileIdStr = e.dataTransfer.getData('pileId');
 
-    if (!draggedPileId) return;
+    if (!draggedPileIdStr) return;
+    const draggedPileId = parseInt(draggedPileIdStr, 10);
 
     const draggedIndex = piles.findIndex(p => p.id === draggedPileId);
     if (draggedIndex === -1 || draggedIndex === dropIndex) return;

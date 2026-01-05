@@ -6,8 +6,8 @@ import SpecimenPopup from './SpecimenPopup';
 
 interface MapViewProps {
   specimens: Specimen[];
-  selectedSpecimenId: string | null;
-  onSelectSpecimen: (id: string | null) => void;
+  selectedSpecimenId: number | null;
+  onSelectSpecimen: (id: number | null) => void;
 }
 
 // Custom marker icons
@@ -33,7 +33,7 @@ const createSelectedIcon = () =>
 
 // Component to handle map initialization and centering
 const MapController: React.FC<{
-  selectedSpecimenId: string | null;
+  selectedSpecimenId: number | null;
   specimens: Specimen[];
   initialBounds: L.LatLngBoundsExpression | null;
 }> = ({ selectedSpecimenId, specimens, initialBounds }) => {
@@ -58,8 +58,8 @@ const MapController: React.FC<{
   useEffect(() => {
     if (selectedSpecimenId) {
       const specimen = specimens.find((s) => s.id === selectedSpecimenId);
-      if (specimen?.locality.latitude && specimen?.locality.longitude) {
-        map.flyTo([specimen.locality.latitude, specimen.locality.longitude], 12, {
+      if (specimen?.latdd != null && specimen?.londd != null) {
+        map.flyTo([specimen.latdd, specimen.londd], 12, {
           duration: 1,
         });
       }
@@ -74,7 +74,7 @@ const MapView: React.FC<MapViewProps> = ({ specimens, selectedSpecimenId, onSele
   const validSpecimens = useMemo(
     () =>
       specimens.filter(
-        (s) => s.locality.latitude != null && s.locality.longitude != null
+        (s) => s.latdd != null && s.londd != null
       ),
     [specimens]
   );
@@ -86,7 +86,7 @@ const MapView: React.FC<MapViewProps> = ({ specimens, selectedSpecimenId, onSele
     }
 
     const coords = validSpecimens.map(
-      (s) => [s.locality.latitude!, s.locality.longitude!] as [number, number]
+      (s) => [s.latdd!, s.londd!] as [number, number]
     );
 
     if (coords.length === 1) {
@@ -153,7 +153,7 @@ const MapView: React.FC<MapViewProps> = ({ specimens, selectedSpecimenId, onSele
         {validSpecimens.map((specimen) => (
           <Marker
             key={specimen.id}
-            position={[specimen.locality.latitude!, specimen.locality.longitude!]}
+            position={[specimen.latdd!, specimen.londd!]}
             icon={selectedSpecimenId === specimen.id ? selectedIcon : defaultIcon}
             eventHandlers={{
               click: () => onSelectSpecimen(specimen.id),
