@@ -28,6 +28,7 @@ export interface Specimen {
   scientificName: string;
   family: string;
   genus: string;
+  wcvpId?: string;
   collector: string;
   collectorNumber?: string;
   collectionDate: string;
@@ -58,6 +59,7 @@ export interface SpecimenFormData {
   scientificName: string;
   family: string;
   genus: string;
+  wcvpId?: string;
   collector: string;
   collectorNumber: string;
   collectionDate: string;

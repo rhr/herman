@@ -41,6 +41,7 @@ class Specimen(Base):
     scientific_name = Column(String(255))
     family = Column(String(100), index=True)
     genus = Column(String(100), index=True)
+    wcvp_id = Column(String(50), index=True)  # WCVP taxon ID for taxonomic verification
     collector = Column(String(255), index=True)
     collector_number = Column(String(100))  # Collector's number for this specimen
     collection_date = Column(String(50))  # Flexible format: YYYY, YYYY-MM, or YYYY-MM-DD
@@ -139,4 +140,29 @@ class Annotation(Base):
 
     __table_args__ = (
         Index('idx_annotations_specimen', 'specimen_id'),
+    )
+
+
+class Taxon(Base):
+    """
+    WCVP (World Checklist of Vascular Plants) taxonomic lookup table
+    Used for autocomplete functionality when entering specimen data
+    """
+    __tablename__ = "taxa"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    taxon_id = Column(String(50), unique=True, index=True)  # WCVP taxon ID
+    family = Column(String(100), index=True)
+    genus = Column(String(100), index=True)
+    scientific_name = Column(String(255), index=True)
+    author = Column(String(500))  # Scientific name authorship
+    rank = Column(String(50), index=True)  # Species, Genus, Variety, Form, etc.
+    status = Column(String(50), index=True)  # Accepted, Synonym, etc.
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_taxa_family', 'family'),
+        Index('idx_taxa_genus', 'genus'),
+        Index('idx_taxa_scientific_name', 'scientific_name', mysql_length=100),
+        Index('idx_taxa_rank_status', 'rank', 'status'),
     )

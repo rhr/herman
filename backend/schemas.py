@@ -98,6 +98,7 @@ class SpecimenCreate(BaseModel):
     scientific_name: Optional[str] = None
     family: Optional[str] = None
     genus: Optional[str] = None
+    wcvp_id: Optional[str] = None
     collector: Optional[str] = None
     collector_number: Optional[str] = None
     collection_date: Optional[str] = None
@@ -120,6 +121,7 @@ class SpecimenUpdate(BaseModel):
     scientific_name: Optional[str] = None
     family: Optional[str] = None
     genus: Optional[str] = None
+    wcvp_id: Optional[str] = None
     collector: Optional[str] = None
     collector_number: Optional[str] = None
     collection_date: Optional[str] = None
@@ -145,6 +147,7 @@ class SpecimenResponse(BaseModel):
     scientific_name: Optional[str]
     family: Optional[str]
     genus: Optional[str]
+    wcvp_id: Optional[str]
     collector: Optional[str]
     collector_number: Optional[str]
     collection_date: Optional[str]

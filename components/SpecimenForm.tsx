@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import Button from './Button';
+import Autocomplete from './Autocomplete';
 import { Specimen, SpecimenFormData } from '../types';
 import { extractSpecimenData } from '../services/geminiService';
 import { apiClient } from '../services/apiClient';
@@ -31,6 +32,7 @@ const SpecimenForm: React.FC<SpecimenFormProps> = ({ initialData, onSubmit, onCa
         scientificName: initialData.scientificName,
         family: initialData.family,
         genus: initialData.genus,
+        wcvpId: initialData.wcvpId,
         collector: initialData.collector,
         collectorNumber: initialData.collectorNumber || '',
         collectionDate: initialData.collectionDate,
@@ -484,23 +486,41 @@ const SpecimenForm: React.FC<SpecimenFormProps> = ({ initialData, onSubmit, onCa
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Scientific Name</label>
-              <input
-                type="text"
-                placeholder="Genus species"
+              <Autocomplete
                 value={formData.scientificName || ''}
-                onChange={e => setFormData({...formData, scientificName: e.target.value})}
-                className="w-full p-2 border border-slate-200 rounded-lg italic text-sm"
+                onChange={(value) => setFormData({...formData, scientificName: value})}
+                onSelect={(suggestion) => {
+                  // Auto-fill family, genus, and WCVP ID from selected scientific name
+                  setFormData({
+                    ...formData,
+                    scientificName: suggestion.value,
+                    family: suggestion.family || formData.family,
+                    genus: suggestion.genus || formData.genus,
+                    wcvpId: suggestion.taxon_id || formData.wcvpId,
+                  });
+                }}
+                fetchSuggestions={(q) => apiClient.autocompleteScientificName(q)}
+                placeholder="Genus species"
+                className="italic"
                 required
               />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Family</label>
-              <input 
-                type="text" 
+              <Autocomplete
+                value={formData.family || ''}
+                onChange={(value) => setFormData({...formData, family: value})}
+                fetchSuggestions={(q) => apiClient.autocompleteFamily(q)}
                 placeholder="Family"
-                value={formData.family || ''} 
-                onChange={e => setFormData({...formData, family: e.target.value})}
-                className="w-full p-2 border border-slate-200 rounded-lg text-sm" 
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Genus</label>
+              <Autocomplete
+                value={formData.genus || ''}
+                onChange={(value) => setFormData({...formData, genus: value})}
+                fetchSuggestions={(q) => apiClient.autocompleteGenus(q, 10, formData.family)}
+                placeholder="Genus"
               />
             </div>
             <div>

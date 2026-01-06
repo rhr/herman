@@ -128,6 +128,7 @@ class ApiClient {
       scientificName: s.scientific_name,
       family: s.family,
       genus: s.genus,
+      wcvpId: s.wcvp_id,
       collector: s.collector,
       collectorNumber: s.collector_number,
       collectionDate: s.collection_date,
@@ -191,6 +192,7 @@ class ApiClient {
       scientificName: s.scientific_name,
       family: s.family,
       genus: s.genus,
+      wcvpId: s.wcvp_id,
       collector: s.collector,
       collectorNumber: s.collector_number,
       collectionDate: s.collection_date,
@@ -412,6 +414,45 @@ class ApiClient {
       throw new Error(error.detail || `HTTP ${response.status}: ${response.statusText}`);
     }
     // Don't try to parse response body for DELETE - just check if it succeeded
+  }
+
+  // ========================================
+  // Autocomplete (WCVP Taxonomy)
+  // ========================================
+
+  async autocompleteScientificName(query: string, limit: number = 10): Promise<any[]> {
+    const response = await fetch(
+      `${API_BASE_URL}/autocomplete/scientific-name?q=${encodeURIComponent(query)}&limit=${limit}`,
+      {
+        headers: this.getAuthHeader(),
+      }
+    );
+
+    return await this.handleResponse<any[]>(response);
+  }
+
+  async autocompleteFamily(query: string, limit: number = 10): Promise<any[]> {
+    const response = await fetch(
+      `${API_BASE_URL}/autocomplete/family?q=${encodeURIComponent(query)}&limit=${limit}`,
+      {
+        headers: this.getAuthHeader(),
+      }
+    );
+
+    return await this.handleResponse<any[]>(response);
+  }
+
+  async autocompleteGenus(query: string, limit: number = 10, family?: string): Promise<any[]> {
+    let url = `${API_BASE_URL}/autocomplete/genus?q=${encodeURIComponent(query)}&limit=${limit}`;
+    if (family) {
+      url += `&family=${encodeURIComponent(family)}`;
+    }
+
+    const response = await fetch(url, {
+      headers: this.getAuthHeader(),
+    });
+
+    return await this.handleResponse<any[]>(response);
   }
 }
 

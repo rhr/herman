@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 # Local imports
 from database import get_db, create_tables
-from models import User, Specimen, Image, Pile, Annotation, pile_specimens
+from models import User, Specimen, Image, Pile, Annotation, Taxon, pile_specimens
 from schemas import (
     UserRegister, UserLogin, TokenResponse, UserResponse,
     SpecimenCreate, SpecimenUpdate, SpecimenResponse, SpecimenListResponse,
@@ -897,6 +897,194 @@ async def delete_annotation(
     db.commit()
 
     return MessageResponse(message="Annotation deleted successfully")
+
+
+# ========================================
+# Autocomplete Routes (WCVP Taxonomy)
+# ========================================
+
+@app.get("/api/autocomplete/scientific-name")
+async def autocomplete_scientific_name(
+    q: str = Query(..., min_length=2, description="Search query (minimum 2 characters)"),
+    limit: int = Query(10, ge=1, le=50, description="Maximum number of results"),
+    db: Session = Depends(get_db)
+):
+    """
+    Autocomplete scientific names from WCVP taxonomy database
+    Optimized with separate prefix and fuzzy queries for better performance
+    """
+    prefix_pattern = f"{q}%"
+    fuzzy_pattern = f"%{q}%"
+
+    # Split limit between prefix and fuzzy matches
+    prefix_limit = min(limit, 10)
+    fuzzy_limit = max(limit - prefix_limit, 5)
+
+    # Query 1: Prefix matches (fast, uses index)
+    prefix_results = (
+        db.query(Taxon)
+        .filter(Taxon.scientific_name.ilike(prefix_pattern))
+        .order_by(
+            Taxon.status != "Accepted",
+            Taxon.rank != "Species",
+            Taxon.scientific_name
+        )
+        .limit(prefix_limit)
+        .all()
+    )
+
+    # Query 2: Fuzzy matches (exclude prefix matches)
+    fuzzy_results = []
+    if len(prefix_results) < limit:
+        fuzzy_results = (
+            db.query(Taxon)
+            .filter(
+                Taxon.scientific_name.ilike(fuzzy_pattern),
+                ~Taxon.scientific_name.ilike(prefix_pattern)
+            )
+            .order_by(
+                Taxon.status != "Accepted",
+                Taxon.rank != "Species",
+                Taxon.scientific_name
+            )
+            .limit(fuzzy_limit)
+            .all()
+        )
+
+    # Combine results: prefix first, then fuzzy
+    results = prefix_results + fuzzy_results
+    results = results[:limit]
+
+    return [{
+        "value": r.scientific_name,
+        "label": f"{r.scientific_name} {r.author}" if r.author else r.scientific_name,
+        "family": r.family,
+        "genus": r.genus,
+        "rank": r.rank,
+        "status": r.status,
+        "taxon_id": r.taxon_id,
+    } for r in results]
+
+
+@app.get("/api/autocomplete/family")
+async def autocomplete_family(
+    q: str = Query(..., min_length=2, description="Search query (minimum 2 characters)"),
+    limit: int = Query(10, ge=1, le=50, description="Maximum number of results"),
+    db: Session = Depends(get_db)
+):
+    """
+    Autocomplete family names from WCVP taxonomy database
+    Optimized with separate prefix and fuzzy queries for better performance
+    """
+    prefix_pattern = f"{q}%"
+    fuzzy_pattern = f"%{q}%"
+
+    # Split limit between prefix and fuzzy matches
+    prefix_limit = min(limit, 10)
+    fuzzy_limit = max(limit - prefix_limit, 5)
+
+    # Query 1: Prefix matches (fast, uses index)
+    prefix_results = (
+        db.query(Taxon.family)
+        .filter(
+            Taxon.family.isnot(None),
+            Taxon.family.ilike(prefix_pattern)
+        )
+        .distinct()
+        .order_by(Taxon.family)
+        .limit(prefix_limit)
+        .all()
+    )
+
+    # Query 2: Fuzzy matches (exclude prefix matches)
+    fuzzy_results = []
+    if len(prefix_results) < limit:
+        fuzzy_results = (
+            db.query(Taxon.family)
+            .filter(
+                Taxon.family.isnot(None),
+                Taxon.family.ilike(fuzzy_pattern),
+                ~Taxon.family.ilike(prefix_pattern)
+            )
+            .distinct()
+            .order_by(Taxon.family)
+            .limit(fuzzy_limit)
+            .all()
+        )
+
+    # Combine results
+    results = prefix_results + fuzzy_results
+    results = results[:limit]
+
+    return [{
+        "value": r[0],
+        "label": r[0],
+    } for r in results]
+
+
+@app.get("/api/autocomplete/genus")
+async def autocomplete_genus(
+    q: str = Query(..., min_length=2, description="Search query (minimum 2 characters)"),
+    limit: int = Query(10, ge=1, le=50, description="Maximum number of results"),
+    family: Optional[str] = Query(None, description="Filter by family"),
+    db: Session = Depends(get_db)
+):
+    """
+    Autocomplete genus names from WCVP taxonomy database
+    Optimized with separate prefix and fuzzy queries for better performance
+    Returns only distinct genus names (not full species names)
+    Optionally filter by family for more relevant results
+    """
+    prefix_pattern = f"{q}%"
+    fuzzy_pattern = f"%{q}%"
+
+    # Split limit between prefix and fuzzy matches
+    prefix_limit = min(limit, 10)
+    fuzzy_limit = max(limit - prefix_limit, 5)
+
+    # Build base filters
+    base_filters = [
+        Taxon.genus.isnot(None),
+        Taxon.rank == "Genus"  # Only genus-rank records
+    ]
+    if family:
+        base_filters.append(Taxon.family == family)
+
+    # Query 1: Prefix matches (fast, uses index)
+    prefix_results = (
+        db.query(Taxon.genus, Taxon.family)
+        .filter(*base_filters, Taxon.genus.ilike(prefix_pattern))
+        .distinct()
+        .order_by(Taxon.genus)
+        .limit(prefix_limit)
+        .all()
+    )
+
+    # Query 2: Fuzzy matches (exclude prefix matches)
+    fuzzy_results = []
+    if len(prefix_results) < limit:
+        fuzzy_results = (
+            db.query(Taxon.genus, Taxon.family)
+            .filter(
+                *base_filters,
+                Taxon.genus.ilike(fuzzy_pattern),
+                ~Taxon.genus.ilike(prefix_pattern)
+            )
+            .distinct()
+            .order_by(Taxon.genus)
+            .limit(fuzzy_limit)
+            .all()
+        )
+
+    # Combine results
+    results = prefix_results + fuzzy_results
+    results = results[:limit]
+
+    return [{
+        "value": r[0],
+        "label": f"{r[0]} ({r[1]})" if r[1] else r[0],
+        "family": r[1],
+    } for r in results]
 
 
 if __name__ == "__main__":
