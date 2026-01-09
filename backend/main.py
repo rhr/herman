@@ -380,7 +380,7 @@ async def create_specimen(
     db.flush()  # Get the specimen ID
 
     # Upload and save images
-    base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+    base_url = os.getenv("API_IMAGE_URL", "http://localhost:8000")
     for position, image_file in enumerate(images):
         # Save image to disk
         storage_path, original_filename, storage_filename, file_size = await file_storage.save_specimen_image(
@@ -477,7 +477,7 @@ async def update_specimen(
 
     # Add new images if provided
     if images and len(images) > 0:
-        base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+        base_url = os.getenv("API_IMAGE_URL", "http://localhost:8000")
         # Get current max position
         max_position = db.query(func.max(Image.position)).filter(
             Image.specimen_id == specimen_id

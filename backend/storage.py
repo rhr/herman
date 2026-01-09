@@ -104,7 +104,8 @@ class FileStorage:
 
     def get_image_url(self, storage_path: str, base_url: str) -> str:
         """Generate public URL for an image"""
-        return f"{base_url}/uploads/{storage_path}"
+        # return f"{base_url}/uploads/{storage_path}"
+        return f"{base_url}/{storage_path}"
 
 
 # Global instance
