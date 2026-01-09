@@ -536,6 +536,52 @@ const App: React.FC = () => {
     setView('detail');
   };
 
+  const handleNextSpecimen = () => {
+    const currentIndex = filteredSpecimens.findIndex(s => s.id === selectedSpecimenId);
+    if (currentIndex !== -1 && currentIndex < filteredSpecimens.length - 1) {
+      const nextSpecimen = filteredSpecimens[currentIndex + 1];
+      setSelectedSpecimenId(nextSpecimen.id);
+    }
+  };
+
+  const handlePreviousSpecimen = () => {
+    const currentIndex = filteredSpecimens.findIndex(s => s.id === selectedSpecimenId);
+    if (currentIndex > 0) {
+      const previousSpecimen = filteredSpecimens[currentIndex - 1];
+      setSelectedSpecimenId(previousSpecimen.id);
+    }
+  };
+
+  const currentSpecimenIndex = useMemo(() => {
+    return filteredSpecimens.findIndex(s => s.id === selectedSpecimenId);
+  }, [filteredSpecimens, selectedSpecimenId]);
+
+  const hasPreviousSpecimen = currentSpecimenIndex > 0;
+  const hasNextSpecimen = currentSpecimenIndex !== -1 && currentSpecimenIndex < filteredSpecimens.length - 1;
+
+  // Keyboard shortcuts for navigation in detail view (Arrow keys)
+  useEffect(() => {
+    if (view !== 'detail') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input/textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (e.key === 'ArrowLeft' && hasPreviousSpecimen) {
+        e.preventDefault();
+        handlePreviousSpecimen();
+      } else if (e.key === 'ArrowRight' && hasNextSpecimen) {
+        e.preventDefault();
+        handleNextSpecimen();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [view, hasPreviousSpecimen, hasNextSpecimen, filteredSpecimens]);
+
   const toggleColumn = (colId: ColumnId) => {
     setVisibleColumns(prev => {
       const newSelection = prev.includes(colId)
@@ -605,7 +651,7 @@ const App: React.FC = () => {
 
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+        <div className="mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setView('gallery'); setActivePileId(null); }}>
             <div className="bg-emerald-600 p-2 rounded-lg">
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -672,7 +718,7 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 container mx-auto px-4 py-8">
+      <main className="flex-1 mx-auto px-4 py-8">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
@@ -930,6 +976,10 @@ const App: React.FC = () => {
                 onDelete={() => handleDeleteSpecimen(activeSpecimen.id)}
                 piles={piles}
                 onTogglePile={handleTogglePile}
+                onNext={handleNextSpecimen}
+                onPrevious={handlePreviousSpecimen}
+                hasNext={hasNextSpecimen}
+                hasPrevious={hasPreviousSpecimen}
               />
             )}
           </>
@@ -938,7 +988,7 @@ const App: React.FC = () => {
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-8 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between text-slate-400 text-xs">
+        <div className="mx-auto px-4 flex flex-col md:flex-row items-center justify-between text-slate-400 text-xs">
           <p>© 2024 Herbarium Pro • Relational Specimen Curation Engine</p>
           <div className="flex gap-6 mt-4 md:mt-0">
             <a href="#" className="hover:text-emerald-600 transition-colors">Documentation</a>

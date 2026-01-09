@@ -17,6 +17,10 @@ interface SpecimenDetailProps {
   onDelete?: () => void;
   piles: Pile[];
   onTogglePile: (pileId: string, specimenId: string) => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
+  hasPrevious?: boolean;
+  hasNext?: boolean;
 }
 
 const SpecimenDetail: React.FC<SpecimenDetailProps> = ({
@@ -27,7 +31,11 @@ const SpecimenDetail: React.FC<SpecimenDetailProps> = ({
   onEdit,
   onDelete,
   piles,
-  onTogglePile
+  onTogglePile,
+  onPrevious,
+  onNext,
+  hasPrevious = false,
+  hasNext = false
 }) => {
   const [newNote, setNewNote] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -232,7 +240,7 @@ const SpecimenDetail: React.FC<SpecimenDetailProps> = ({
   const activePileCount = piles.filter(p => p.specimenIds.includes(specimen.id)).length;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="mx-auto space-y-6">
       {showPileModal && (
         <AddToPileModal 
           specimenId={specimen.id}
@@ -243,9 +251,34 @@ const SpecimenDetail: React.FC<SpecimenDetailProps> = ({
       )}
 
       <div className="flex justify-between items-center">
-        <Button variant="outline" onClick={onBack}>
-          &larr; Back to Gallery
-        </Button>
+        <div className="flex gap-2 items-center">
+          <Button variant="outline" onClick={onBack}>
+            &larr; Back to Gallery
+          </Button>
+          {/* Navigation buttons */}
+          <div className="flex gap-1 ml-2 border-l border-slate-200 pl-2">
+            <button
+              onClick={onPrevious}
+              disabled={!hasPrevious}
+              className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-emerald-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-slate-100 disabled:hover:text-slate-600"
+              title="Previous specimen"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <button
+              onClick={onNext}
+              disabled={!hasNext}
+              className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-emerald-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-slate-100 disabled:hover:text-slate-600"
+              title="Next specimen"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        </div>
         <div className="flex gap-2">
           <Button variant="outline" className="text-xs" onClick={() => setShowPileModal(true)}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
