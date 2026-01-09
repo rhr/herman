@@ -30,7 +30,8 @@ load_dotenv()
 app = FastAPI(
     title="Herbarium Pro API",
     description="Backend API for digital herbarium management",
-    version="1.0.0"
+    version="1.0.0",
+    root_path="/herman"
 )
 
 # CORS middleware
