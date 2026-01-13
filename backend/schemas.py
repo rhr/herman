@@ -169,6 +169,7 @@ class SpecimenResponse(BaseModel):
     # Relationships
     images: List[ImageResponse] = []
     annotations: List[AnnotationResponse] = []
+    sequences: List[SequenceResponse] = []
     tags: List[str] = []  # For compatibility with frontend
 
     class Config:
@@ -210,6 +211,47 @@ class PileResponse(BaseModel):
     description: Optional[str]
     created_at: datetime
     specimen_ids: List[int] = []
+
+    class Config:
+        from_attributes = True
+
+
+# ========================================
+# Sequence Schemas
+# ========================================
+
+class SequenceCreate(BaseModel):
+    gene: Optional[str] = Field(None, max_length=100)
+    genbank_id: Optional[str] = Field(None, max_length=50)
+    genbank_accession: Optional[str] = Field(None, max_length=50)
+    taxon: Optional[str] = Field(None, max_length=255)
+    sequence: str = Field(..., description="DNA sequence string")
+    suspect: Optional[bool] = False
+    comments: Optional[str] = None
+
+
+class SequenceUpdate(BaseModel):
+    gene: Optional[str] = Field(None, max_length=100)
+    genbank_id: Optional[str] = Field(None, max_length=50)
+    genbank_accession: Optional[str] = Field(None, max_length=50)
+    taxon: Optional[str] = Field(None, max_length=255)
+    sequence: Optional[str] = None
+    suspect: Optional[bool] = None
+    comments: Optional[str] = None
+
+
+class SequenceResponse(BaseModel):
+    id: int
+    specimen_id: int
+    gene: Optional[str]
+    genbank_id: Optional[str]
+    genbank_accession: Optional[str]
+    taxon: Optional[str]
+    sequence: str
+    suspect: bool
+    comments: Optional[str]
+    created_at: datetime
+    mtime: datetime  # Modification time
 
     class Config:
         from_attributes = True

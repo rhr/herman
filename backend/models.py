@@ -7,7 +7,7 @@ and simpler references. UUIDs were removed in favor of BIGINT primary keys.
 from datetime import datetime
 from sqlalchemy import (
     Column, String, Integer, BigInteger, Float, Text, DateTime,
-    ForeignKey, Table, Date, Index
+    ForeignKey, Table, Date, Index, Boolean
 )
 from sqlalchemy.orm import relationship, declarative_base
 
@@ -67,6 +67,7 @@ class Specimen(Base):
     user = relationship("User", back_populates="specimens")
     images = relationship("Image", back_populates="specimen", cascade="all, delete-orphan", order_by="Image.position")
     annotations = relationship("Annotation", back_populates="specimen", cascade="all, delete-orphan")
+    sequences = relationship("Sequence", back_populates="specimen", cascade="all, delete-orphan")
     piles = relationship("Pile", secondary="pile_specimens", back_populates="specimens")
 
     # Indexes
@@ -75,6 +76,43 @@ class Specimen(Base):
         Index('idx_specimens_family', 'family'),
         Index('idx_specimens_genus', 'genus'),
         Index('idx_specimens_coordinates', 'latdd', 'londd'),  # Composite index for map queries
+    )
+
+
+class Sequence(Base):
+    """DNA sequence data associated with specimens"""
+    __tablename__ = "sequences"
+
+    # Primary key - allow manual ID setting for import, but auto-increment for new records
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+
+    # Foreign key to specimens with cascade delete
+    specimen_id = Column(
+        BigInteger,
+        ForeignKey("specimens.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    # Sequence data fields
+    gene = Column(String(100), index=True)  # matK, rps16, ITS, etc.
+    genbank_id = Column(String(50))
+    genbank_accession = Column(String(50), index=True)
+    taxon = Column(String(255))
+    sequence = Column(Text, nullable=False)  # The DNA sequence
+    suspect = Column(Boolean, default=False)  # Data quality flag
+    comments = Column(Text)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    mtime = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)  # Modification time
+
+    # Relationship back to Specimen
+    specimen = relationship("Specimen", back_populates="sequences")
+
+    # Composite index for common queries
+    __table_args__ = (
+        Index('idx_sequences_specimen_gene', 'specimen_id', 'gene'),
     )
 
 

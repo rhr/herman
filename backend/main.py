@@ -7,18 +7,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, or_
 from typing import List, Optional
+from datetime import datetime
 import os
 from dotenv import load_dotenv
 
 # Local imports
 from database import get_db, create_tables
-from models import User, Specimen, Image, Pile, Annotation, Taxon, pile_specimens
+from models import User, Specimen, Image, Pile, Annotation, Taxon, Sequence, pile_specimens
 from schemas import (
     UserRegister, UserLogin, TokenResponse, UserResponse,
     SpecimenCreate, SpecimenUpdate, SpecimenResponse, SpecimenListResponse,
     ImageResponse,
     PileCreate, PileUpdate, PileResponse,
     AnnotationCreate, AnnotationResponse,
+    SequenceCreate, SequenceUpdate, SequenceResponse,
     MessageResponse
 )
 from auth import hash_password, verify_password, create_access_token, get_current_user
@@ -270,7 +272,8 @@ async def get_specimen(
 ):
     """Get a single specimen by ID"""
     specimen = db.query(Specimen).options(
-        joinedload(Specimen.annotations).joinedload(Annotation.user)
+        joinedload(Specimen.annotations).joinedload(Annotation.user),
+        joinedload(Specimen.sequences)
     ).filter(
         Specimen.id == specimen_id,
         Specimen.user_id == current_user.id
@@ -293,6 +296,7 @@ async def get_specimen(
         'scientific_name': specimen.scientific_name,
         'family': specimen.family,
         'genus': specimen.genus,
+        'wcvp_id': specimen.wcvp_id,
         'collector': specimen.collector,
         'collector_number': specimen.collector_number,
         'collection_date': specimen.collection_date,
@@ -312,6 +316,66 @@ async def get_specimen(
         'updated_at': specimen.updated_at,
         'images': [ImageResponse.from_orm(img).dict() for img in specimen.images],
         'annotations': [anno.dict() for anno in annotations],
+        'sequences': [SequenceResponse.from_orm(seq).dict() for seq in specimen.sequences],
+        'tags': []
+    }
+
+    return spec_dict
+
+
+@app.get("/api/specimens/by-code/{code}", response_model=SpecimenResponse)
+async def get_specimen_by_code(
+    code: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a single specimen by its unique code identifier"""
+    specimen = db.query(Specimen).options(
+        joinedload(Specimen.annotations).joinedload(Annotation.user),
+        joinedload(Specimen.sequences)
+    ).filter(
+        Specimen.code == code,
+        Specimen.user_id == current_user.id
+    ).first()
+
+    if not specimen:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Specimen not found"
+        )
+
+    # Manually transform annotations using the custom from_orm method
+    annotations = [AnnotationResponse.from_orm(anno) for anno in specimen.annotations]
+
+    # Create specimen dict without using from_orm to avoid validation issues
+    spec_dict = {
+        'id': specimen.id,
+        'user_id': specimen.user_id,
+        'code': specimen.code,
+        'scientific_name': specimen.scientific_name,
+        'family': specimen.family,
+        'genus': specimen.genus,
+        'wcvp_id': specimen.wcvp_id,
+        'collector': specimen.collector,
+        'collector_number': specimen.collector_number,
+        'collection_date': specimen.collection_date,
+        'description': specimen.description,
+        'microhabitat': specimen.microhabitat,
+        'country': specimen.country,
+        'state_province': specimen.state_province,
+        'county_city': specimen.county_city,
+        'locality_description': specimen.locality_description,
+        'latitude': specimen.latitude,
+        'longitude': specimen.longitude,
+        'latdd': specimen.latdd,
+        'londd': specimen.londd,
+        'elevation': specimen.elevation,
+        'habitat': specimen.habitat,
+        'created_at': specimen.created_at,
+        'updated_at': specimen.updated_at,
+        'images': [ImageResponse.from_orm(img).dict() for img in specimen.images],
+        'annotations': [anno.dict() for anno in annotations],
+        'sequences': [SequenceResponse.from_orm(seq).dict() for seq in specimen.sequences],
         'tags': []
     }
 
@@ -1086,6 +1150,180 @@ async def autocomplete_genus(
         "label": f"{r[0]} ({r[1]})" if r[1] else r[0],
         "family": r[1],
     } for r in results]
+
+
+# ========================================
+# Sequence Routes
+# ========================================
+
+@app.get("/api/specimens/{specimen_id}/sequences")
+async def get_specimen_sequences(
+    specimen_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all sequences for a specific specimen"""
+    # Verify user owns the specimen
+    specimen = db.query(Specimen).filter(
+        Specimen.id == specimen_id,
+        Specimen.user_id == current_user.id
+    ).first()
+
+    if not specimen:
+        raise HTTPException(status_code=404, detail="Specimen not found")
+
+    sequences = db.query(Sequence).filter(
+        Sequence.specimen_id == specimen_id
+    ).all()
+
+    return {"sequences": sequences, "count": len(sequences)}
+
+
+@app.get("/api/sequences/{sequence_id}", response_model=SequenceResponse)
+async def get_sequence(
+    sequence_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a specific sequence by ID"""
+    sequence = db.query(Sequence).filter(Sequence.id == sequence_id).first()
+
+    if not sequence:
+        raise HTTPException(status_code=404, detail="Sequence not found")
+
+    # Verify user owns the specimen
+    specimen = db.query(Specimen).filter(
+        Specimen.id == sequence.specimen_id,
+        Specimen.user_id == current_user.id
+    ).first()
+
+    if not specimen:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return sequence
+
+
+@app.post("/api/specimens/{specimen_id}/sequences", status_code=201)
+async def create_sequence(
+    specimen_id: int,
+    gene: Optional[str] = Form(None),
+    genbank_id: Optional[str] = Form(None),
+    genbank_accession: Optional[str] = Form(None),
+    taxon: Optional[str] = Form(None),
+    sequence: str = Form(...),
+    suspect: bool = Form(False),
+    comments: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new sequence for a specimen"""
+    # Verify user owns the specimen
+    specimen = db.query(Specimen).filter(
+        Specimen.id == specimen_id,
+        Specimen.user_id == current_user.id
+    ).first()
+
+    if not specimen:
+        raise HTTPException(status_code=404, detail="Specimen not found")
+
+    # Create sequence
+    new_sequence = Sequence(
+        specimen_id=specimen_id,
+        gene=gene,
+        genbank_id=genbank_id,
+        genbank_accession=genbank_accession,
+        taxon=taxon,
+        sequence=sequence,
+        suspect=suspect,
+        comments=comments
+    )
+
+    db.add(new_sequence)
+    db.commit()
+    db.refresh(new_sequence)
+
+    return {"message": "Sequence created successfully", "sequence_id": new_sequence.id}
+
+
+@app.put("/api/sequences/{sequence_id}", response_model=MessageResponse)
+async def update_sequence(
+    sequence_id: int,
+    gene: Optional[str] = Form(None),
+    genbank_id: Optional[str] = Form(None),
+    genbank_accession: Optional[str] = Form(None),
+    taxon: Optional[str] = Form(None),
+    sequence: Optional[str] = Form(None),
+    suspect: Optional[bool] = Form(None),
+    comments: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update an existing sequence"""
+    # Get sequence
+    seq = db.query(Sequence).filter(Sequence.id == sequence_id).first()
+
+    if not seq:
+        raise HTTPException(status_code=404, detail="Sequence not found")
+
+    # Verify user owns the specimen
+    specimen = db.query(Specimen).filter(
+        Specimen.id == seq.specimen_id,
+        Specimen.user_id == current_user.id
+    ).first()
+
+    if not specimen:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Update fields if provided
+    if gene is not None:
+        seq.gene = gene
+    if genbank_id is not None:
+        seq.genbank_id = genbank_id
+    if genbank_accession is not None:
+        seq.genbank_accession = genbank_accession
+    if taxon is not None:
+        seq.taxon = taxon
+    if sequence is not None:
+        seq.sequence = sequence
+    if suspect is not None:
+        seq.suspect = suspect
+    if comments is not None:
+        seq.comments = comments
+
+    # Explicitly update mtime (onupdate should handle this, but being explicit)
+    seq.mtime = datetime.utcnow()
+
+    db.commit()
+
+    return {"message": "Sequence updated successfully"}
+
+
+@app.delete("/api/sequences/{sequence_id}", response_model=MessageResponse)
+async def delete_sequence(
+    sequence_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a sequence"""
+    # Get sequence
+    seq = db.query(Sequence).filter(Sequence.id == sequence_id).first()
+
+    if not seq:
+        raise HTTPException(status_code=404, detail="Sequence not found")
+
+    # Verify user owns the specimen
+    specimen = db.query(Specimen).filter(
+        Specimen.id == seq.specimen_id,
+        Specimen.user_id == current_user.id
+    ).first()
+
+    if not specimen:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    db.delete(seq)
+    db.commit()
+
+    return {"message": "Sequence deleted successfully"}
 
 
 if __name__ == "__main__":
