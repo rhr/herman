@@ -10,14 +10,15 @@ import { apiClient } from './apiClient';
 
 export class DatabaseService {
   /**
-   * Get all specimens from the backend with pagination, search, and sorting
+   * Get all specimens from the backend with pagination, search, sorting, and pile filtering
    */
   static async getAllSpecimens(
     page: number = 1,
     pageSize: number = 50,
     search?: string,
     sortBy?: string,
-    sortDirection?: 'asc' | 'desc'
+    sortDirection?: 'asc' | 'desc',
+    pileId?: number | null
   ): Promise<{
     specimens: Specimen[];
     pagination: {
@@ -30,7 +31,7 @@ export class DatabaseService {
     };
   }> {
     try {
-      return await apiClient.getAllSpecimens(page, pageSize, search, sortBy, sortDirection);
+      return await apiClient.getAllSpecimens(page, pageSize, search, sortBy, sortDirection, pileId);
     } catch (error) {
       console.error('Failed to fetch specimens:', error);
       throw error;

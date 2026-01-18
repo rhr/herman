@@ -42,6 +42,8 @@ const SpecimenForm: React.FC<SpecimenFormProps> = ({ initialData, onSubmit, onCa
         localityDescription: initialData.localityDescription || '',
         latitude: initialData.latitude || '',
         longitude: initialData.longitude || '',
+        latdd: initialData.latdd !== undefined && initialData.latdd !== null ? initialData.latdd.toString() : '',
+        londd: initialData.londd !== undefined && initialData.londd !== null ? initialData.londd.toString() : '',
         elevation: initialData.elevation || '',
         habitat: initialData.habitat || '',
         microhabitat: initialData.microhabitat || '',
@@ -177,10 +179,25 @@ const SpecimenForm: React.FC<SpecimenFormProps> = ({ initialData, onSubmit, onCa
         ...prev,
         latitude: pos.coords.latitude.toString(),
         longitude: pos.coords.longitude.toString(),
+        latdd: pos.coords.latitude.toString(),
+        londd: pos.coords.longitude.toString(),
       }));
     }, (err) => {
       alert("Could not retrieve location. Please check browser permissions.");
     });
+  };
+
+  // Validate coordinate values
+  const validateLatitude = (value: string): boolean => {
+    if (value === '') return true; // Empty is valid
+    const num = parseFloat(value);
+    return !isNaN(num) && num >= -90 && num <= 90;
+  };
+
+  const validateLongitude = (value: string): boolean => {
+    if (value === '') return true; // Empty is valid
+    const num = parseFloat(value);
+    return !isNaN(num) && num >= -180 && num <= 180;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -637,9 +654,54 @@ const SpecimenForm: React.FC<SpecimenFormProps> = ({ initialData, onSubmit, onCa
               </div>
             </div>
 
-            <div className="flex items-end">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                Decimal Degrees
+                <span className="block text-[10px] font-normal text-slate-400 normal-case mt-0.5">For mapping (Lat: -90 to 90, Lon: -180 to 180)</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="Latitude (e.g. 37.7749)"
+                  value={formData.latdd || ''}
+                  onChange={e => {
+                    const value = e.target.value;
+                    if (validateLatitude(value)) {
+                      setFormData({...formData, latdd: value});
+                    }
+                  }}
+                  className={`w-full p-2 border rounded-lg text-sm ${
+                    formData.latdd && !validateLatitude(formData.latdd)
+                      ? 'border-rose-500 bg-rose-50'
+                      : 'border-slate-200'
+                  }`}
+                  title="Latitude in decimal degrees (-90 to 90)"
+                />
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="Longitude (e.g. -122.4194)"
+                  value={formData.londd || ''}
+                  onChange={e => {
+                    const value = e.target.value;
+                    if (validateLongitude(value)) {
+                      setFormData({...formData, londd: value});
+                    }
+                  }}
+                  className={`w-full p-2 border rounded-lg text-sm ${
+                    formData.londd && !validateLongitude(formData.londd)
+                      ? 'border-rose-500 bg-rose-50'
+                      : 'border-slate-200'
+                  }`}
+                  title="Longitude in decimal degrees (-180 to 180)"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-end col-span-2">
               <Button type="button" variant="outline" className="w-full text-xs" onClick={getLocation}>
-                Get Coordinates
+                Get Current Location
               </Button>
             </div>
 

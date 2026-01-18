@@ -163,11 +163,21 @@ const App: React.FC = () => {
     loadData(currentPage, searchQuery, sortColumn, sortDirection);
   }, [sortColumn, sortDirection]);
 
+  // Reload data when active pile changes
+  useEffect(() => {
+    if (!apiClient.isAuthenticated()) return;
+
+    // Reset to page 1 when pile selection changes
+    // Pass the activePileId explicitly to ensure it's included in the API call
+    loadData(1, searchQuery, sortColumn, sortDirection, activePileId);
+  }, [activePileId]);
+
   const loadData = async (
     page: number = currentPage,
     search?: string,
     sortBy?: string,
-    sortDir?: 'asc' | 'desc'
+    sortDir?: 'asc' | 'desc',
+    pileId?: number | null
   ) => {
     if (!apiClient.isAuthenticated()) {
       setShowAuthModal(true);
@@ -180,9 +190,10 @@ const App: React.FC = () => {
       const currentSearch = search !== undefined ? search : searchQuery;
       const currentSortBy = sortBy !== undefined ? sortBy : (sortColumn || undefined);
       const currentSortDir = sortDir !== undefined ? sortDir : sortDirection;
+      const currentPileId = pileId !== undefined ? pileId : activePileId;
 
       const [specimenResponse, pileData] = await Promise.all([
-        DatabaseService.getAllSpecimens(page, pageSize, currentSearch || undefined, currentSortBy, currentSortDir),
+        DatabaseService.getAllSpecimens(page, pageSize, currentSearch || undefined, currentSortBy, currentSortDir, currentPileId),
         DatabaseService.getAllPiles()
       ]);
       console.log('Data loaded successfully:', {
@@ -299,26 +310,107 @@ const App: React.FC = () => {
   const activePile = useMemo(() => piles.find(p => p.id === activePileId), [piles, activePileId]);
 
   const filteredSpecimens = useMemo(() => {
-    // Server-side search and sorting are already applied
-    // Only need to filter by pile if active
-    let filtered = specimens;
-    if (activePileId) {
-      const targetPile = piles.find(p => p.id === activePileId);
-      if (targetPile) {
-        filtered = specimens.filter(s => targetPile.specimenIds.includes(s.id));
-      }
-    }
-
-    return filtered;
-  }, [specimens, activePileId, piles]);
+    // Server-side search, sorting, and pile filtering are already applied
+    // No client-side filtering needed
+    return specimens;
+  }, [specimens]);
 
   const activeSpecimen = useMemo(() => {
     return specimens.find(s => s.id === selectedSpecimenId);
   }, [specimens, selectedSpecimenId]);
 
+  /**
+   * Parse coordinate string to decimal degrees
+   * Supports formats:
+   * - Decimal degrees: "37.7749", "-122.4194"
+   * - DMS: "37°46'23.5"N", "122°25'9.6"W"
+   * - DMS with spaces: "37° 46' 23.5" N"
+   * - DMS with d/m/s: "37d46m23.5sN"
+   * - Direction indicators: N/S for latitude, E/W for longitude
+   */
+  const parseCoordinate = (coordStr: string): number | undefined => {
+    if (!coordStr || coordStr.trim() === '') {
+      return undefined;
+    }
+
+    try {
+      const str = coordStr.trim().toUpperCase();
+
+      // Check for direction at the end (N/S/E/W as direction indicators, not part of DMS notation)
+      // Look for direction letters that are NOT preceded by a digit (to avoid catching 's' in '23.5s')
+      const directionMatch = str.match(/[NSEW]$/);
+      const isNegative = directionMatch ? (directionMatch[0] === 'S' || directionMatch[0] === 'W') : false;
+
+      // Remove direction indicators at the end only
+      let cleanStr = str.replace(/[NSEW]$/, '').trim();
+
+      // Try simple decimal format first
+      const simpleDecimal = parseFloat(cleanStr);
+      if (!isNaN(simpleDecimal) && !cleanStr.includes('°') && !cleanStr.includes('D') && !cleanStr.includes('\'') && !cleanStr.includes('"')) {
+        return isNegative ? -Math.abs(simpleDecimal) : simpleDecimal;
+      }
+
+      // Parse DMS format
+      // Replace common separators with spaces for consistent parsing
+      cleanStr = cleanStr
+        .replace(/°/g, ' ')      // degrees symbol
+        .replace(/D/gi, ' ')     // degrees letter (case insensitive)
+        .replace(/['′]/g, ' ')   // minutes
+        .replace(/M/gi, ' ')     // minutes letter
+        .replace(/["″]/g, ' ')   // seconds
+        .replace(/S/gi, ' ')     // seconds letter (now safe since we removed direction)
+        .replace(/\s+/g, ' ')    // normalize multiple spaces
+        .trim();
+
+      // Extract numbers
+      const parts = cleanStr.split(' ').filter(p => p.length > 0).map(p => parseFloat(p)).filter(n => !isNaN(n));
+
+      if (parts.length === 0) {
+        return undefined;
+      }
+
+      // Calculate decimal degrees
+      let decimal = parts[0]; // degrees
+
+      if (parts.length > 1) {
+        decimal += parts[1] / 60; // minutes
+      }
+
+      if (parts.length > 2) {
+        decimal += parts[2] / 3600; // seconds
+      }
+
+      // Apply negative for S/W
+      if (isNegative) {
+        decimal = -Math.abs(decimal);
+      }
+
+      return decimal;
+    } catch (error) {
+      console.warn('Failed to parse coordinate:', coordStr, error);
+      return undefined;
+    }
+  };
+
   const handleSaveSpecimen = async (data: any, id?: number) => {
     const isEditing = !!id;
     const existingSpecimen = isEditing ? specimens.find(s => s.id === id) : null;
+
+    // Use latdd/londd if provided, otherwise try to parse from verbatim coordinates
+    let latdd: number | undefined = undefined;
+    let londd: number | undefined = undefined;
+
+    if (data.latdd !== undefined && data.latdd !== null && data.latdd !== '') {
+      latdd = parseFloat(data.latdd);
+    } else if (data.latitude) {
+      latdd = parseCoordinate(data.latitude);
+    }
+
+    if (data.londd !== undefined && data.londd !== null && data.londd !== '') {
+      londd = parseFloat(data.londd);
+    } else if (data.longitude) {
+      londd = parseCoordinate(data.longitude);
+    }
 
     const specimenData: Specimen & { images?: File[] } = {
       id: id || 0, // Temporary ID, will be replaced by API response
@@ -336,8 +428,8 @@ const App: React.FC = () => {
       localityDescription: data.localityDescription || '',
       latitude: data.latitude || '',
       longitude: data.longitude || '',
-      latdd: parseFloat(data.latitude) || undefined,
-      londd: parseFloat(data.longitude) || undefined,
+      latdd: latdd,
+      londd: londd,
       elevation: data.elevation || '',
       habitat: data.habitat || '',
       imageUrls: data.imageUrls || [],
@@ -727,7 +819,7 @@ const App: React.FC = () => {
         ) : (
           <>
             {view === 'gallery' && (
-              <div className="flex flex-col md:flex-row gap-8 relative">
+              <div className="flex flex-col md:flex-row gap-2 relative">
                 {/* Collapsible Sidebar */}
                 <div
                   className={`relative transition-all duration-300 ${

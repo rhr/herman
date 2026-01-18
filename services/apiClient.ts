@@ -25,7 +25,9 @@ class ApiClient {
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-      throw new Error(error.detail || `HTTP ${response.status}: ${response.statusText}`);
+      const errorMessage = error.detail || error.message || `HTTP ${response.status}: ${response.statusText}`;
+      console.error('API Error:', errorMessage, error);
+      throw new Error(errorMessage);
     }
     return response.json();
   }
@@ -83,7 +85,8 @@ class ApiClient {
     pageSize: number = 50,
     search?: string,
     sortBy?: string,
-    sortDirection?: 'asc' | 'desc'
+    sortDirection?: 'asc' | 'desc',
+    pileId?: number | null
   ): Promise<{
     specimens: Specimen[];
     pagination: {
@@ -104,6 +107,9 @@ class ApiClient {
     }
     if (sortDirection) {
       url += `&sort_direction=${sortDirection}`;
+    }
+    if (pileId !== undefined && pileId !== null) {
+      url += `&pile_id=${pileId}`;
     }
     const response = await fetch(url, {
       headers: this.getAuthHeader(),

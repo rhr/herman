@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Specimen } from '../types';
@@ -30,6 +30,65 @@ const createSelectedIcon = () =>
     popupAnchor: [1, -44],
     shadowSize: [41, 41],
   });
+
+// Zoom Reset Button Component
+const ZoomResetButton: React.FC<{
+  specimens: Specimen[];
+}> = ({ specimens }) => {
+  const map = useMap();
+
+  const handleZoomReset = () => {
+    if (specimens.length === 0) return;
+
+    const coords = specimens.map(
+      (s) => [s.latdd!, s.londd!] as [number, number]
+    );
+
+    if (coords.length === 1) {
+      // Single specimen - center on it with reasonable zoom
+      map.flyTo(coords[0], 10, { duration: 1 });
+    } else {
+      // Multiple specimens - fit bounds
+      const bounds = L.latLngBounds(coords);
+      map.flyToBounds(bounds, {
+        padding: [50, 50],
+        duration: 1,
+        maxZoom: 15
+      });
+    }
+  };
+
+  return (
+    <div className="leaflet-top leaflet-right" style={{ marginTop: '10px', marginRight: '10px' }}>
+      <div className="leaflet-control leaflet-bar">
+        <button
+          onClick={handleZoomReset}
+          className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-sm transition-colors"
+          style={{
+            width: '34px',
+            height: '34px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            border: 'none',
+            borderRadius: '4px',
+          }}
+          title="Fit all specimens in view"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" strokeWidth="2"/>
+            <circle cx="12" cy="12" r="3" strokeWidth="2"/>
+            <line x1="12" y1="2" x2="12" y2="7" strokeWidth="2" strokeLinecap="round"/>
+            <line x1="12" y1="17" x2="12" y2="22" strokeWidth="2" strokeLinecap="round"/>
+            <line x1="2" y1="12" x2="7" y2="12" strokeWidth="2" strokeLinecap="round"/>
+            <line x1="17" y1="12" x2="22" y2="12" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+};
 
 // Component to handle map initialization and centering
 const MapController: React.FC<{
@@ -170,6 +229,8 @@ const MapView: React.FC<MapViewProps> = ({ specimens, selectedSpecimenId, onSele
           specimens={validSpecimens}
           initialBounds={mapSettings.bounds}
         />
+
+        <ZoomResetButton specimens={validSpecimens} />
       </MapContainer>
     </div>
   );

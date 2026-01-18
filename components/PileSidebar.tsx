@@ -39,7 +39,7 @@ const PileSidebar: React.FC<PileSidebarProps> = ({
     setIsCreating(false);
   };
 
-  const handleDragOver = (e: React.DragEvent, id: string | 'all') => {
+  const handleDragOver = (e: React.DragEvent, id: number | 'all') => {
     e.preventDefault();
     if (id === 'all') {
       setIsDraggingOverAll(true);
@@ -111,6 +111,57 @@ const PileSidebar: React.FC<PileSidebarProps> = ({
     setDraggingPileId(null);
   };
 
+  // Combined handler for pile buttons that handles both specimen drops and pile reordering
+  const handlePileButtonDragOver = (e: React.DragEvent, pileId: number, index: number) => {
+    e.preventDefault();
+    const isPileDrag = e.dataTransfer.types.includes('pileid');
+
+    if (isPileDrag) {
+      // Handle pile reordering
+      setDragOverIndex(index);
+    } else {
+      // Handle specimen drop
+      setDragOverPileId(pileId);
+    }
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handlePileButtonDrop = (e: React.DragEvent, pileId: number, index: number) => {
+    e.preventDefault();
+
+    // Check if this is a pile being dropped (for reordering)
+    const draggedPileIdStr = e.dataTransfer.getData('pileId');
+    if (draggedPileIdStr) {
+      // This is a pile reorder drop
+      const draggedPileId = parseInt(draggedPileIdStr, 10);
+      const draggedIndex = piles.findIndex(p => p.id === draggedPileId);
+      if (draggedIndex === -1 || draggedIndex === index) {
+        setDragOverIndex(null);
+        setDraggingPileId(null);
+        setDragOverPileId(null);
+        return;
+      }
+
+      const reorderedPiles = [...piles];
+      const [removed] = reorderedPiles.splice(draggedIndex, 1);
+      reorderedPiles.splice(index, 0, removed);
+
+      onReorderPiles(reorderedPiles);
+      setDragOverIndex(null);
+      setDraggingPileId(null);
+      setDragOverPileId(null);
+      return;
+    }
+
+    // Check if this is a specimen being dropped
+    const specimenIdStr = e.dataTransfer.getData('specimenId');
+    if (specimenIdStr) {
+      const specimenId = parseInt(specimenIdStr, 10);
+      onDropSpecimen(pileId, specimenId);
+      setDragOverPileId(null);
+    }
+  };
+
   return (
     <div className="w-full md:w-64 flex-shrink-0 space-y-6">
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
@@ -162,9 +213,9 @@ const PileSidebar: React.FC<PileSidebarProps> = ({
                 <button
                   draggable={true}
                   onDragStart={(e) => handlePileDragStart(e, pile.id)}
-                  onDragOver={(e) => handlePileDragOver(e, index)}
+                  onDragOver={(e) => handlePileButtonDragOver(e, pile.id, index)}
                   onDragEnd={handlePileDragEnd}
-                  onDrop={(e) => handlePileDrop(e, index)}
+                  onDrop={(e) => handlePileButtonDrop(e, pile.id, index)}
                   onDragLeave={handleDragLeave}
                   onClick={() => onSelectPile(pile.id)}
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-between gap-3 cursor-move ${

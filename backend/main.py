@@ -155,15 +155,33 @@ async def get_all_specimens(
     search: Optional[str] = Query(None, description="Search query for scientific name, family, or collector"),
     sort_by: Optional[str] = Query(None, description="Field to sort by (id, family, genus, collector, collector_number, collection_date, created_at, updated_at)"),
     sort_direction: Optional[str] = Query("asc", description="Sort direction (asc or desc)"),
+    pile_id: Optional[int] = Query(None, description="Filter specimens by pile ID"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get paginated specimens for the authenticated user with optional search and sorting"""
+    """Get paginated specimens for the authenticated user with optional search, sorting, and pile filtering"""
     # Calculate offset
     offset = (page - 1) * page_size
 
     # Build base query
     base_query = db.query(Specimen).filter(Specimen.user_id == current_user.id)
+
+    # Apply pile filter if provided
+    if pile_id is not None:
+        # Verify the pile belongs to the current user
+        pile = db.query(Pile).filter(
+            Pile.id == pile_id,
+            Pile.user_id == current_user.id
+        ).first()
+
+        if not pile:
+            raise HTTPException(status_code=404, detail="Pile not found")
+
+        # Join with pile_specimens to filter by pile membership
+        base_query = base_query.join(
+            pile_specimens,
+            Specimen.id == pile_specimens.c.specimen_id
+        ).filter(pile_specimens.c.pile_id == pile_id)
 
     # Apply search filter if provided
     if search:
