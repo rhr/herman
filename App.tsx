@@ -1,18 +1,20 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import { Specimen, Annotation, Pile, HistoryEntry, ActionType } from './types';
-import SpecimenCard from './components/SpecimenCard';
 import SpecimenForm from './components/SpecimenForm';
 import SpecimenDetail from './components/SpecimenDetail';
-import SpecimenTable, { ColumnId, SortableColumnId, SortDirection } from './components/SpecimenTable';
-import PileSidebar from './components/PileSidebar';
+import { ColumnId, SortableColumnId, SortDirection } from './components/SpecimenTable';
 import ActionHistory from './components/ActionHistory';
 import AuthModal from './components/AuthModal';
 import Button from './components/Button';
-import MapView from './components/MapView';
-import SpecimenMapCard from './components/SpecimenMapCard';
+import GalleryView from './components/views/GalleryView';
+import SpecimenDetailView from './components/views/SpecimenDetailView';
+import AddSpecimenView from './components/views/AddSpecimenView';
+import EditSpecimenView from './components/views/EditSpecimenView';
 import { DatabaseService } from './services/databaseService';
 import { apiClient } from './services/apiClient';
+import { useSpecimenUrl } from './hooks/useSpecimenUrl';
 
 const ALL_COLUMNS: { id: ColumnId; label: string }[] = [
   { id: 'specimen', label: 'Specimen Info' },
@@ -30,19 +32,16 @@ const ALL_COLUMNS: { id: ColumnId; label: string }[] = [
 ];
 
 const App: React.FC = () => {
+  // URL-driven state
+  const { urlState, updateUrlState, navigateToSpecimen, navigateToGallery, navigateToAdd, navigateToEdit } = useSpecimenUrl();
+  const { searchQuery, sortColumn, sortDirection, currentPage, activePileId, layout } = urlState;
+
+  // Local state
   const [specimens, setSpecimens] = useState<Specimen[]>([]);
   const [piles, setPiles] = useState<Pile[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [activePileId, setActivePileId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [view, setView] = useState<'gallery' | 'add' | 'detail' | 'edit'>('gallery');
-  const [layout, setLayout] = useState<'grid' | 'table' | 'map'>(() => {
-    const saved = localStorage.getItem('layout');
-    return (saved as 'grid' | 'table' | 'map') || 'grid';
-  });
-  const [selectedSpecimenId, setSelectedSpecimenId] = useState<number | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(() => {
     const saved = localStorage.getItem('visibleColumns');
     return saved ? JSON.parse(saved) : ['specimen', 'family', 'locality', 'collector', 'date'];
@@ -52,26 +51,13 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('isSidebarCollapsed');
     return saved === 'true';
   });
-  const [sortColumn, setSortColumn] = useState<SortableColumnId | null>(() => {
-    const saved = localStorage.getItem('sortColumn');
-    return saved as SortableColumnId | null;
-  });
-  const [sortDirection, setSortDirection] = useState<SortDirection>(() => {
-    const saved = localStorage.getItem('sortDirection');
-    return (saved as SortDirection) || 'asc';
-  });
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [totalPages, setTotalPages] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
   const columnPickerRef = useRef<HTMLDivElement>(null);
-
-  // Load specimens and piles from "database" on mount
-  useEffect(() => {
-    loadData();
-  }, []);
+  const prevSearchRef = useRef<string>(searchQuery);
 
   // Keyboard shortcut for Undo (Ctrl+Z)
   useEffect(() => {
@@ -110,19 +96,6 @@ const App: React.FC = () => {
     localStorage.setItem('isSidebarCollapsed', String(isSidebarCollapsed));
   }, [isSidebarCollapsed]);
 
-  // Persist sort preferences to localStorage
-  useEffect(() => {
-    if (sortColumn) {
-      localStorage.setItem('sortColumn', sortColumn);
-    } else {
-      localStorage.removeItem('sortColumn');
-    }
-  }, [sortColumn]);
-
-  useEffect(() => {
-    localStorage.setItem('sortDirection', sortDirection);
-  }, [sortDirection]);
-
   // Check authentication status on mount
   useEffect(() => {
     const checkAuth = async () => {
@@ -133,7 +106,7 @@ const App: React.FC = () => {
         try {
           const user = await apiClient.getCurrentUser();
           setCurrentUser(user);
-          loadData();
+          // loadData will be triggered by URL state effect
         } catch (error) {
           console.error('Authentication check failed:', error);
           setShowAuthModal(true);
@@ -144,33 +117,19 @@ const App: React.FC = () => {
     checkAuth();
   }, []);
 
-  // Reload data when search query changes (with debounce and reset to page 1)
+  // Consolidated data loading effect driven by URL state
   useEffect(() => {
     if (!apiClient.isAuthenticated()) return;
 
+    // Debounce search updates
     const timeoutId = setTimeout(() => {
-      loadData(1, searchQuery);
-    }, 300); // 300ms debounce
+      loadData(currentPage, searchQuery, sortColumn || undefined, sortDirection, activePileId);
+    }, searchQuery !== prevSearchRef.current ? 300 : 0);
+
+    prevSearchRef.current = searchQuery;
 
     return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
-
-  // Reload data when sort parameters change
-  useEffect(() => {
-    if (!apiClient.isAuthenticated()) return;
-    if (!sortColumn) return; // Don't reload if no sort column selected
-
-    loadData(currentPage, searchQuery, sortColumn, sortDirection);
-  }, [sortColumn, sortDirection]);
-
-  // Reload data when active pile changes
-  useEffect(() => {
-    if (!apiClient.isAuthenticated()) return;
-
-    // Reset to page 1 when pile selection changes
-    // Pass the activePileId explicitly to ensure it's included in the API call
-    loadData(1, searchQuery, sortColumn, sortDirection, activePileId);
-  }, [activePileId]);
+  }, [searchQuery, sortColumn, sortDirection, currentPage, activePileId, currentUser]);
 
   const loadData = async (
     page: number = currentPage,
@@ -208,8 +167,12 @@ const App: React.FC = () => {
       setSpecimens(specimenResponse.specimens);
       setTotalPages(specimenResponse.pagination.totalPages);
       setTotalItems(specimenResponse.pagination.total);
-      setCurrentPage(specimenResponse.pagination.page);
       setPiles(pileData);
+
+      // Update URL if page is out of range
+      if (specimenResponse.pagination.page !== currentPage) {
+        updateUrlState({ currentPage: specimenResponse.pagination.page }, true);
+      }
     } catch (error: any) {
       console.error("Failed to load data:", error);
       console.error("Error details:", { message: error.message, stack: error.stack });
@@ -307,17 +270,6 @@ const App: React.FC = () => {
     }
   };
 
-  const activePile = useMemo(() => piles.find(p => p.id === activePileId), [piles, activePileId]);
-
-  const filteredSpecimens = useMemo(() => {
-    // Server-side search, sorting, and pile filtering are already applied
-    // No client-side filtering needed
-    return specimens;
-  }, [specimens]);
-
-  const activeSpecimen = useMemo(() => {
-    return specimens.find(s => s.id === selectedSpecimenId);
-  }, [specimens, selectedSpecimenId]);
 
   /**
    * Parse coordinate string to decimal degrees
@@ -442,15 +394,15 @@ const App: React.FC = () => {
 
     if (isEditing) {
       setSpecimens(prev => prev.map(s => s.id === id ? specimenData : s));
-      pushHistory('UPDATE_SPECIMEN', `Updated specimen: ${specimenData.scientificName}`, { 
+      pushHistory('UPDATE_SPECIMEN', `Updated specimen: ${specimenData.scientificName}`, {
         previousState: existingSpecimen,
-        newState: specimenData 
+        newState: specimenData
       });
-      setView('detail');
+      navigateToSpecimen(specimenData.id);
     } else {
       setSpecimens(prev => [specimenData, ...prev]);
       pushHistory('ADD_SPECIMEN', `Registered specimen: ${specimenData.scientificName}`, { id: specimenData.id });
-      setView('gallery');
+      navigateToGallery();
     }
 
     try {
@@ -609,11 +561,11 @@ const App: React.FC = () => {
     const specimenToDelete = specimens.find(s => s.id === id);
     if (!specimenToDelete) return;
     if (!confirm("Are you sure you want to delete this specimen?")) return;
-    
+
     setSpecimens(prev => prev.filter(s => s.id !== id));
     pushHistory('DELETE_SPECIMEN', `Deleted specimen: ${specimenToDelete.scientificName}`, { specimen: specimenToDelete });
-    
-    setView('gallery');
+
+    navigateToGallery();
 
     try {
       await DatabaseService.deleteSpecimen(id);
@@ -623,82 +575,13 @@ const App: React.FC = () => {
     }
   };
 
-  const openSpecimen = (id: number) => {
-    setSelectedSpecimenId(id);
-    setView('detail');
-  };
-
-  const handleNextSpecimen = () => {
-    const currentIndex = filteredSpecimens.findIndex(s => s.id === selectedSpecimenId);
-    if (currentIndex !== -1 && currentIndex < filteredSpecimens.length - 1) {
-      const nextSpecimen = filteredSpecimens[currentIndex + 1];
-      setSelectedSpecimenId(nextSpecimen.id);
-    }
-  };
-
-  const handlePreviousSpecimen = () => {
-    const currentIndex = filteredSpecimens.findIndex(s => s.id === selectedSpecimenId);
-    if (currentIndex > 0) {
-      const previousSpecimen = filteredSpecimens[currentIndex - 1];
-      setSelectedSpecimenId(previousSpecimen.id);
-    }
-  };
-
-  const currentSpecimenIndex = useMemo(() => {
-    return filteredSpecimens.findIndex(s => s.id === selectedSpecimenId);
-  }, [filteredSpecimens, selectedSpecimenId]);
-
-  const hasPreviousSpecimen = currentSpecimenIndex > 0;
-  const hasNextSpecimen = currentSpecimenIndex !== -1 && currentSpecimenIndex < filteredSpecimens.length - 1;
-
-  // Keyboard shortcuts for navigation in detail view (Arrow keys)
-  useEffect(() => {
-    if (view !== 'detail') return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input/textarea
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      if (e.key === 'ArrowLeft' && hasPreviousSpecimen) {
-        e.preventDefault();
-        handlePreviousSpecimen();
-      } else if (e.key === 'ArrowRight' && hasNextSpecimen) {
-        e.preventDefault();
-        handleNextSpecimen();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [view, hasPreviousSpecimen, hasNextSpecimen, filteredSpecimens]);
-
-  const toggleColumn = (colId: ColumnId) => {
-    setVisibleColumns(prev => {
-      const newSelection = prev.includes(colId)
-        ? prev.filter(id => id !== colId)
-        : [...prev, colId];
-
-      // Sort by the order defined in ALL_COLUMNS
-      return ALL_COLUMNS
-        .map(col => col.id)
-        .filter(id => newSelection.includes(id));
-    });
-  };
-
-  const handleMapMarkerClick = (id: number) => {
-    setSelectedSpecimenId(id);
-  };
-
   const handleSort = (column: SortableColumnId) => {
     if (sortColumn === column) {
       // Toggle direction if clicking the same column
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      updateUrlState({ sortDirection: sortDirection === 'asc' ? 'desc' : 'asc' }, true);
     } else {
       // Set new column and default to ascending
-      setSortColumn(column);
-      setSortDirection('asc');
+      updateUrlState({ sortColumn: column, sortDirection: 'asc' }, true);
     }
   };
 
@@ -706,8 +589,7 @@ const App: React.FC = () => {
     console.log('Authentication successful:', user);
     setCurrentUser(user);
     setShowAuthModal(false);
-    console.log('Calling loadData after auth success');
-    loadData();
+    // loadData will be triggered by URL state effect when currentUser changes
   };
 
   const handleLogout = () => {
@@ -720,7 +602,7 @@ const App: React.FC = () => {
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
-      loadData(newPage);
+      updateUrlState({ currentPage: newPage }, true);
     }
   };
 
@@ -744,7 +626,7 @@ const App: React.FC = () => {
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
         <div className="mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setView('gallery'); setActivePileId(null); }}>
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => { updateUrlState({ activePileId: null }, true); navigateToGallery(); }}>
             <div className="bg-emerald-600 p-2 rounded-lg">
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -755,11 +637,11 @@ const App: React.FC = () => {
 
           <div className="hidden md:flex flex-1 max-w-md mx-8">
             <div className="relative w-full">
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Search collection..."
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={e => updateUrlState({ searchQuery: e.target.value, currentPage: 1 }, true)}
                 className="w-full bg-slate-100 border-none rounded-full py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-emerald-500 transition-all outline-none"
               />
               <svg className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -799,7 +681,7 @@ const App: React.FC = () => {
                 </Button>
               </>
             )}
-            <Button variant="primary" onClick={() => setView('add')}>
+            <Button variant="primary" onClick={navigateToAdd}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
               </svg>
@@ -817,264 +699,66 @@ const App: React.FC = () => {
             <p className="text-slate-500 font-medium">Connecting to specimen database...</p>
           </div>
         ) : (
-          <>
-            {view === 'gallery' && (
-              <div className="flex flex-col md:flex-row gap-2 relative">
-                {/* Collapsible Sidebar */}
-                <div
-                  className={`relative transition-all duration-300 ${
-                    isSidebarCollapsed ? 'w-0 overflow-hidden opacity-0' : 'w-full md:w-80'
-                  }`}
-                >
-                  {!isSidebarCollapsed && (
-                    <PileSidebar
-                      piles={piles}
-                      activePileId={activePileId}
-                      onSelectPile={setActivePileId}
-                      onCreatePile={handleCreatePile}
-                      onDeletePile={handleDeletePile}
-                      onDropSpecimen={handleAddSpecimenToPile}
-                      onRemoveFromPile={handleRemoveSpecimenFromPile}
-                      onReorderPiles={handleReorderPiles}
-                    />
-                  )}
-                </div>
-
-                <div className={`flex-1 min-0 transition-all duration-300 ${isSidebarCollapsed ? 'md:ml-0' : ''}`}>
-                  <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
-                    <div className="flex items-center gap-3">
-                      {/* Sidebar Toggle */}
-                      <button
-                        onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                        className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors flex-shrink-0"
-                        title={isSidebarCollapsed ? "Show piles sidebar" : "Hide piles sidebar"}
-                      >
-                        <svg
-                          className={`w-5 h-5 transition-transform ${isSidebarCollapsed ? 'rotate-180' : ''}`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                        </svg>
-                      </button>
-
-                      <div>
-                        <h2 className="text-3xl font-bold text-slate-900 serif">
-                          {activePile ? activePile.name : 'Digital Collection'}
-                        </h2>
-                        <p className="text-slate-500 mt-1">
-                          {activePile ? (activePile.description || 'Virtual collection of selected specimens') : 'Curated primary database'}
-                          • {totalItems} total specimens
-                          {searchQuery && ` • Showing ${filteredSpecimens.length} matches`}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {layout === 'table' && (
-                        <div className="relative" ref={columnPickerRef}>
-                          <button 
-                            onClick={() => setShowColumnPicker(!showColumnPicker)}
-                            className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-                            title="Configure Columns"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                            </svg>
-                          </button>
-
-                          {showColumnPicker && (
-                            <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 z-50 p-4">
-                              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Visible Columns</h4>
-                              <div className="space-y-2">
-                                {ALL_COLUMNS.map(col => (
-                                  <label key={col.id} className="flex items-center gap-3 cursor-pointer group">
-                                    <input
-                                      type="checkbox"
-                                      checked={visibleColumns.includes(col.id)}
-                                      onChange={() => toggleColumn(col.id)}
-                                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
-                                    />
-                                    <span className="text-sm text-slate-600 group-hover:text-slate-900 transition-colors">
-                                      {col.label}
-                                    </span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="flex bg-slate-100 p-1 rounded-lg">
-                        <button
-                          onClick={() => setLayout('grid')}
-                          className={`px-3 py-1.5 rounded-md flex items-center gap-2 text-xs font-bold transition-all ${layout === 'grid' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                          </svg>
-                          Grid
-                        </button>
-                        <button
-                          onClick={() => setLayout('table')}
-                          className={`px-3 py-1.5 rounded-md flex items-center gap-2 text-xs font-bold transition-all ${layout === 'table' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                          </svg>
-                          Table
-                        </button>
-                        <button
-                          onClick={() => setLayout('map')}
-                          className={`px-3 py-1.5 rounded-md flex items-center gap-2 text-xs font-bold transition-all ${layout === 'map' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                          </svg>
-                          Map
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Pagination Controls */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-2 mb-6">
-                      <button
-                        onClick={() => handlePageChange(1)}
-                        disabled={currentPage === 1}
-                        className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
-                        title="First page"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handlePageChange(currentPage - 1)}
-                        disabled={currentPage === 1}
-                        className="px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
-                      >
-                        Previous
-                      </button>
-                      <span className="px-4 py-2 text-sm font-medium text-slate-700">
-                        Page {currentPage} of {totalPages}
-                      </span>
-                      <button
-                        onClick={() => handlePageChange(currentPage + 1)}
-                        disabled={currentPage === totalPages}
-                        className="px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
-                      >
-                        Next
-                      </button>
-                      <button
-                        onClick={() => handlePageChange(totalPages)}
-                        disabled={currentPage === totalPages}
-                        className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
-                        title="Last page"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                        </svg>
-                      </button>
-                    </div>
-                  )}
-
-                  {filteredSpecimens.length > 0 ? (
-                    layout === 'map' ? (
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Left Panel: Scrollable List */}
-                        <div className="space-y-4 max-h-[800px] overflow-y-auto">
-                          {filteredSpecimens.map(s => (
-                            <SpecimenMapCard
-                              key={s.id}
-                              specimen={s}
-                              isSelected={selectedSpecimenId === s.id}
-                              onClick={() => handleMapMarkerClick(s.id)}
-                            />
-                          ))}
-                        </div>
-
-                        {/* Right Panel: Map */}
-                        <div className="sticky top-4 h-[800px]">
-                          <MapView
-                            specimens={filteredSpecimens}
-                            selectedSpecimenId={selectedSpecimenId}
-                            onSelectSpecimen={handleMapMarkerClick}
-                          />
-                        </div>
-                      </div>
-                    ) : layout === 'grid' ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredSpecimens.map(s => (
-                          <SpecimenCard
-                            key={s.id}
-                            specimen={s}
-                            onClick={openSpecimen}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <SpecimenTable
-                        specimens={filteredSpecimens}
-                        onClick={openSpecimen}
-                        visibleColumns={visibleColumns}
-                        sortColumn={sortColumn}
-                        sortDirection={sortDirection}
-                        onSort={handleSort}
-                      />
-                    )
-                  ) : (
-                    <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 border-dashed">
-                      <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                        </svg>
-                      </div>
-                      <h3 className="text-xl font-semibold text-slate-600">
-                        {activePileId ? 'Pile Empty' : 'Database Empty'}
-                      </h3>
-                      <p className="text-slate-400 mt-2">
-                        {activePileId ? 'Add specimens to this virtual collection from the main gallery.' : 'Add your first specimen to start the digital herbarium.'}
-                      </p>
-                      {!activePileId && (
-                        <Button variant="outline" className="mx-auto mt-6" onClick={() => setView('add')}>
-                          Register New Specimen
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {(view === 'add' || view === 'edit') && (
-              <SpecimenForm 
-                initialData={view === 'edit' ? activeSpecimen : undefined}
-                onSubmit={handleSaveSpecimen} 
-                onCancel={() => view === 'edit' ? setView('detail') : setView('gallery')} 
-              />
-            )}
-
-            {view === 'detail' && activeSpecimen && (
-              <SpecimenDetail
-                specimen={activeSpecimen}
-                onBack={() => setView('gallery')}
-                onEdit={() => setView('edit')}
-                onAddAnnotation={handleAddAnnotation}
-                onDeleteAnnotation={handleDeleteAnnotation}
-                onDelete={() => handleDeleteSpecimen(activeSpecimen.id)}
-                piles={piles}
-                onTogglePile={handleTogglePile}
-                onNext={handleNextSpecimen}
-                onPrevious={handlePreviousSpecimen}
-                hasNext={hasNextSpecimen}
-                hasPrevious={hasPreviousSpecimen}
-              />
-            )}
-          </>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <GalleryView
+                  specimens={specimens}
+                  piles={piles}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  visibleColumns={visibleColumns}
+                  setVisibleColumns={setVisibleColumns}
+                  showColumnPicker={showColumnPicker}
+                  setShowColumnPicker={setShowColumnPicker}
+                  isSidebarCollapsed={isSidebarCollapsed}
+                  setIsSidebarCollapsed={setIsSidebarCollapsed}
+                  columnPickerRef={columnPickerRef}
+                  onOpenSpecimen={navigateToSpecimen}
+                  onCreatePile={handleCreatePile}
+                  onDeletePile={handleDeletePile}
+                  onDropSpecimen={handleAddSpecimenToPile}
+                  onRemoveFromPile={handleRemoveSpecimenFromPile}
+                  onReorderPiles={handleReorderPiles}
+                  onSort={handleSort}
+                  onPageChange={handlePageChange}
+                  allColumns={ALL_COLUMNS}
+                />
+              }
+            />
+            <Route
+              path="/add"
+              element={
+                <AddSpecimenView onSubmit={handleSaveSpecimen} />
+              }
+            />
+            <Route
+              path="/specimen/:id"
+              element={
+                <SpecimenDetailView
+                  specimens={specimens}
+                  piles={piles}
+                  isLoading={isLoading}
+                  onAddAnnotation={handleAddAnnotation}
+                  onDeleteAnnotation={handleDeleteAnnotation}
+                  onDelete={handleDeleteSpecimen}
+                  onTogglePile={handleTogglePile}
+                  onEdit={navigateToEdit}
+                />
+              }
+            />
+            <Route
+              path="/specimen/:id/edit"
+              element={
+                <EditSpecimenView
+                  specimens={specimens}
+                  isLoading={isLoading}
+                  onSubmit={handleSaveSpecimen}
+                />
+              }
+            />
+          </Routes>
         )}
       </main>
 

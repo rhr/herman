@@ -1,6 +1,7 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 
 console.log('===== INDEX.TSX IS LOADING =====');
@@ -19,7 +20,9 @@ const root = ReactDOM.createRoot(rootElement);
 
 console.log('Rendering App component...');
 root.render(
-  <App />
+  <BrowserRouter>
+    <App />
+  </BrowserRouter>
 );
 
 console.log('===== APP RENDERED =====');
