@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Specimen } from '../types';
 import { formatCollectionDate } from '../utils/formatters';
 
@@ -17,9 +18,24 @@ interface SpecimenTableProps {
 }
 
 const SpecimenTable: React.FC<SpecimenTableProps> = ({ specimens, onClick, visibleColumns, sortColumn, sortDirection, onSort }) => {
+  const [searchParams] = useSearchParams();
+
   const handleDragStart = (e: React.DragEvent, id: number) => {
     e.dataTransfer.setData('specimenId', id.toString());
     e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleRowClick = (e: React.MouseEvent, id: number) => {
+    const specimenUrl = `/specimen/${id}?${searchParams.toString()}`;
+
+    // Middle click or Ctrl/Cmd+click - open in new tab
+    if (e.button === 1 || e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      window.open(specimenUrl, '_blank');
+    } else if (e.button === 0) {
+      // Normal left click
+      onClick(id);
+    }
   };
 
   const sortableColumns: SortableColumnId[] = ['id', 'family', 'genus', 'collector', 'collectorNumber', 'date', 'createdAt', 'updatedAt'];
@@ -222,12 +238,14 @@ const SpecimenTable: React.FC<SpecimenTableProps> = ({ specimens, onClick, visib
         </thead>
         <tbody className="divide-y divide-slate-100">
           {specimens.map((specimen) => (
-            <tr 
+            <tr
               key={specimen.id}
               draggable="true"
               onDragStart={(e) => handleDragStart(e, specimen.id)}
-              onClick={() => onClick(specimen.id)}
+              onClick={(e) => handleRowClick(e, specimen.id)}
+              onAuxClick={(e) => handleRowClick(e, specimen.id)}
               className="hover:bg-emerald-50/30 cursor-grab active:cursor-grabbing transition-colors group"
+              title="Click to view • Ctrl+Click or Middle-click to open in new tab"
             >
               {visibleColumns.map(colId => renderCell(specimen, colId))}
             </tr>

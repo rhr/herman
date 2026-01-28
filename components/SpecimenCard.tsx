@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Specimen } from '../types';
 import { formatCollectionDate } from '../utils/formatters';
 
@@ -9,6 +10,7 @@ interface SpecimenCardProps {
 }
 
 const SpecimenCard: React.FC<SpecimenCardProps> = ({ specimen, onClick }) => {
+  const [searchParams] = useSearchParams();
   const primaryImage = specimen.imageUrls?.[0] || 'https://via.placeholder.com/300x400?text=No+Image';
 
   const handleDragStart = (e: React.DragEvent) => {
@@ -24,13 +26,24 @@ const SpecimenCard: React.FC<SpecimenCardProps> = ({ specimen, onClick }) => {
     target.style.opacity = '1';
   };
 
+  const handleClick = (e: React.MouseEvent) => {
+    // Only call onClick for regular clicks (not middle-click, ctrl+click, etc.)
+    if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      e.preventDefault();
+      onClick(specimen.id);
+    }
+  };
+
+  const specimenUrl = `/specimen/${specimen.id}?${searchParams.toString()}`;
+
   return (
-    <div 
+    <Link
+      to={specimenUrl}
       draggable="true"
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      onClick={() => onClick(specimen.id)}
-      className="group bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow duration-200"
+      onClick={handleClick}
+      className="group bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow duration-200 block"
     >
       <div className="aspect-[3/4] overflow-hidden bg-slate-100 relative pointer-events-none">
         <img 
@@ -66,7 +79,7 @@ const SpecimenCard: React.FC<SpecimenCardProps> = ({ specimen, onClick }) => {
           </span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 };
 

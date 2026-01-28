@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Specimen } from '../types';
 
 interface SpecimenMapCardProps {
@@ -8,14 +9,34 @@ interface SpecimenMapCardProps {
 }
 
 const SpecimenMapCard: React.FC<SpecimenMapCardProps> = ({ specimen, isSelected, onClick }) => {
+  const [searchParams] = useSearchParams();
   const hasCoordinates = specimen.latdd != null && specimen.londd != null;
   const imageUrl = specimen.imageUrls[0] || 'https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?auto=format&fit=crop&q=80&w=800';
 
+  const handleClick = (e: React.MouseEvent) => {
+    if (!hasCoordinates) {
+      e.preventDefault();
+      return;
+    }
+    // Only call onClick for regular clicks (not middle-click, ctrl+click, etc.)
+    if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
+  const specimenUrl = `/specimen/${specimen.id}?${searchParams.toString()}`;
+
+  const Component = hasCoordinates ? Link : 'div';
+  const componentProps = hasCoordinates
+    ? { to: specimenUrl, onClick: handleClick }
+    : {};
+
   return (
-    <div
-      onClick={hasCoordinates ? onClick : undefined}
+    <Component
+      {...componentProps}
       className={`
-        bg-white rounded-lg p-4 border transition-all
+        bg-white rounded-lg p-4 border transition-all block
         ${hasCoordinates ? 'cursor-pointer hover:shadow-md' : 'opacity-50 cursor-not-allowed'}
         ${isSelected && hasCoordinates ? 'border-emerald-500 ring-2 ring-emerald-200 bg-emerald-50' : 'border-slate-200'}
       `}
@@ -94,7 +115,7 @@ const SpecimenMapCard: React.FC<SpecimenMapCardProps> = ({ specimen, isSelected,
           </div>
         </div>
       </div>
-    </div>
+    </Component>
   );
 };
 
