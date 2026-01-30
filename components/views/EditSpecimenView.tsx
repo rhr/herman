@@ -1,9 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Specimen } from '../../types';
 import SpecimenForm from '../SpecimenForm';
 import Button from '../Button';
 import { useSpecimenUrl } from '../../hooks/useSpecimenUrl';
+import { apiClient } from '../../services/apiClient';
 
 interface EditSpecimenViewProps {
   specimens: Specimen[];
@@ -19,10 +20,42 @@ const EditSpecimenView: React.FC<EditSpecimenViewProps> = ({
   const { id } = useParams<{ id: string }>();
   const { navigateToGallery, navigateToSpecimen } = useSpecimenUrl();
   const specimenId = id ? parseInt(id) : null;
+  const [fetchedSpecimen, setFetchedSpecimen] = useState<Specimen | null>(null);
+  const [isFetching, setIsFetching] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
 
-  const specimen = useMemo(() => {
+  // Try to find specimen in the specimens array first
+  const specimenFromList = useMemo(() => {
     return specimens.find(s => s.id === specimenId);
   }, [specimens, specimenId]);
+
+  // Reset fetched specimen when ID changes
+  useEffect(() => {
+    setFetchedSpecimen(null);
+    setFetchError(false);
+  }, [specimenId]);
+
+  // If not found in list, fetch it from API
+  useEffect(() => {
+    if (specimenId && !specimenFromList && !isLoading && !isFetching && !fetchedSpecimen && !fetchError) {
+      setIsFetching(true);
+      apiClient.getSpecimen(specimenId)
+        .then(data => {
+          setFetchedSpecimen(data);
+          setFetchError(false);
+        })
+        .catch(error => {
+          console.error('Failed to fetch specimen:', error);
+          setFetchError(true);
+        })
+        .finally(() => {
+          setIsFetching(false);
+        });
+    }
+  }, [specimenId, specimenFromList, isLoading, isFetching, fetchedSpecimen, fetchError]);
+
+  // Use specimen from list if available, otherwise use fetched specimen
+  const specimen = specimenFromList || fetchedSpecimen;
 
   const handleCancel = () => {
     if (specimenId) {
@@ -32,8 +65,18 @@ const EditSpecimenView: React.FC<EditSpecimenViewProps> = ({
     }
   };
 
+  // Loading state
+  if (isLoading || isFetching || (!specimen && !fetchError)) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
+        <p className="text-slate-500 font-medium">Loading specimen...</p>
+      </div>
+    );
+  }
+
   // Handle specimen not found
-  if (!isLoading && !specimen) {
+  if (fetchError || !specimen) {
     return (
       <div className="text-center py-20 bg-white rounded-3xl border border-slate-200">
         <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -48,16 +91,6 @@ const EditSpecimenView: React.FC<EditSpecimenViewProps> = ({
         <Button variant="primary" onClick={navigateToGallery}>
           Return to Gallery
         </Button>
-      </div>
-    );
-  }
-
-  // Loading state
-  if (isLoading || !specimen) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
-        <p className="text-slate-500 font-medium">Loading specimen...</p>
       </div>
     );
   }

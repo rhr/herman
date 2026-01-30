@@ -29,13 +29,13 @@ const SpecimenForm: React.FC<SpecimenFormProps> = ({ initialData, onSubmit, onCa
     if (initialData) {
       setFormData({
         code: initialData.code || '',
-        scientificName: initialData.scientificName,
-        family: initialData.family,
-        genus: initialData.genus,
-        wcvpId: initialData.wcvpId,
-        collector: initialData.collector,
+        scientificName: initialData.scientificName || '',
+        family: initialData.family || '',
+        genus: initialData.genus || '',
+        wcvpId: initialData.wcvpId || '',
+        collector: initialData.collector || '',
         collectorNumber: initialData.collectorNumber || '',
-        collectionDate: initialData.collectionDate,
+        collectionDate: initialData.collectionDate || '',
         country: initialData.country || '',
         stateProvince: initialData.stateProvince || '',
         countyCity: initialData.countyCity || '',
@@ -47,9 +47,9 @@ const SpecimenForm: React.FC<SpecimenFormProps> = ({ initialData, onSubmit, onCa
         elevation: initialData.elevation || '',
         habitat: initialData.habitat || '',
         microhabitat: initialData.microhabitat || '',
-        description: initialData.description,
+        description: initialData.description || '',
       });
-      setImagePreviews(initialData.imageUrls);
+      setImagePreviews(initialData.imageUrls || []);
     }
   }, [initialData]);
 

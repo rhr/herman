@@ -39,6 +39,18 @@ export class DatabaseService {
   }
 
   /**
+   * Get a single specimen by ID
+   */
+  static async getSpecimen(id: number): Promise<Specimen> {
+    try {
+      return await apiClient.getSpecimen(id);
+    } catch (error) {
+      console.error('Failed to fetch specimen:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Save a new specimen to the backend
    */
   static async saveSpecimen(specimen: Specimen & { images?: File[] }): Promise<void> {
