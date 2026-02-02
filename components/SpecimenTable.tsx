@@ -15,10 +15,34 @@ interface SpecimenTableProps {
   sortColumn: SortableColumnId | null;
   sortDirection: SortDirection;
   onSort: (column: SortableColumnId) => void;
+  selectedIds?: Set<number>;
+  onToggleSelection?: (id: number) => void;
+  onToggleSelectAll?: () => void;
 }
 
-const SpecimenTable: React.FC<SpecimenTableProps> = ({ specimens, onClick, visibleColumns, sortColumn, sortDirection, onSort }) => {
+const SpecimenTable: React.FC<SpecimenTableProps> = ({
+  specimens,
+  onClick,
+  visibleColumns,
+  sortColumn,
+  sortDirection,
+  onSort,
+  selectedIds = new Set(),
+  onToggleSelection,
+  onToggleSelectAll
+}) => {
   const [searchParams] = useSearchParams();
+  const checkboxRef = React.useRef<HTMLInputElement>(null);
+
+  // Update checkbox indeterminate state
+  const allSelected = specimens.length > 0 && specimens.every(s => selectedIds.has(s.id));
+  const someSelected = specimens.some(s => selectedIds.has(s.id)) && !allSelected;
+
+  React.useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = someSelected;
+    }
+  }, [someSelected]);
 
   const handleDragStart = (e: React.DragEvent, id: number) => {
     e.dataTransfer.setData('specimenId', id.toString());
@@ -233,23 +257,51 @@ const SpecimenTable: React.FC<SpecimenTableProps> = ({ specimens, onClick, visib
       <table className="w-full text-left border-collapse min-w-[800px]">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-200">
+            {onToggleSelection && onToggleSelectAll && (
+              <th className="w-12 px-4 py-4">
+                <input
+                  type="checkbox"
+                  ref={checkboxRef}
+                  checked={allSelected}
+                  onChange={onToggleSelectAll}
+                  className="w-4 h-4 cursor-pointer rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                  title={allSelected ? "Deselect all" : "Select all on page"}
+                />
+              </th>
+            )}
             {visibleColumns.map(renderHeader)}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {specimens.map((specimen) => (
-            <tr
-              key={specimen.id}
-              draggable="true"
-              onDragStart={(e) => handleDragStart(e, specimen.id)}
-              onClick={(e) => handleRowClick(e, specimen.id)}
-              onAuxClick={(e) => handleRowClick(e, specimen.id)}
-              className="hover:bg-emerald-50/30 cursor-grab active:cursor-grabbing transition-colors group"
-              title="Click to view • Ctrl+Click or Middle-click to open in new tab"
-            >
-              {visibleColumns.map(colId => renderCell(specimen, colId))}
-            </tr>
-          ))}
+          {specimens.map((specimen) => {
+            const isSelected = selectedIds.has(specimen.id);
+            return (
+              <tr
+                key={specimen.id}
+                draggable="true"
+                onDragStart={(e) => handleDragStart(e, specimen.id)}
+                onClick={(e) => handleRowClick(e, specimen.id)}
+                onAuxClick={(e) => handleRowClick(e, specimen.id)}
+                className={`hover:bg-emerald-50/30 cursor-grab active:cursor-grabbing transition-colors group ${
+                  isSelected ? 'bg-blue-50/50' : ''
+                }`}
+                title="Click to view • Ctrl+Click or Middle-click to open in new tab"
+              >
+                {onToggleSelection && (
+                  <td className="w-12 px-4 py-4">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onToggleSelection(specimen.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-4 h-4 cursor-pointer rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                    />
+                  </td>
+                )}
+                {visibleColumns.map(colId => renderCell(specimen, colId))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

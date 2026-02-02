@@ -7,6 +7,7 @@ import SpecimenMapCard from '../SpecimenMapCard';
 import MapView from '../MapView';
 import PileSidebar from '../PileSidebar';
 import Button from '../Button';
+import AddToPileModal from '../AddToPileModal';
 import { useSpecimenUrl } from '../../hooks/useSpecimenUrl';
 
 interface GalleryViewProps {
@@ -57,6 +58,8 @@ const GalleryView: React.FC<GalleryViewProps> = ({
   const { urlState, updateUrlState } = useSpecimenUrl();
   const { layout, activePileId, searchQuery, sortColumn, sortDirection, currentPage } = urlState;
   const [selectedSpecimenId, setSelectedSpecimenId] = useState<number | null>(null);
+  const [selectedSpecimenIds, setSelectedSpecimenIds] = useState<Set<number>>(new Set());
+  const [showAddToPileModal, setShowAddToPileModal] = useState(false);
 
   const activePile = piles.find(p => p.id === activePileId);
 
@@ -77,6 +80,59 @@ const GalleryView: React.FC<GalleryViewProps> = ({
     setSelectedSpecimenId(id);
   };
 
+  const handleToggleSelection = (id: number) => {
+    setSelectedSpecimenIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedSpecimenIds.size === specimens.length && specimens.length > 0) {
+      setSelectedSpecimenIds(new Set()); // Clear all
+    } else {
+      setSelectedSpecimenIds(new Set(specimens.map(s => s.id)));
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedSpecimenIds(new Set());
+  };
+
+  const handleBulkAddToPile = () => {
+    setShowAddToPileModal(true);
+  };
+
+  const handleBulkRemoveFromPile = () => {
+    if (!activePileId) return;
+
+    selectedSpecimenIds.forEach(specimenId => {
+      onRemoveFromPile(activePileId, specimenId);
+    });
+    setSelectedSpecimenIds(new Set());
+  };
+
+  const handleBulkTogglePile = (pileId: number) => {
+    selectedSpecimenIds.forEach(specimenId => {
+      const pile = piles.find(p => p.id === pileId);
+      if (!pile) return;
+
+      const isInPile = pile.specimenIds.includes(specimenId);
+      if (isInPile) {
+        onRemoveFromPile(pileId, specimenId);
+      } else {
+        onDropSpecimen(pileId, specimenId);
+      }
+    });
+    setSelectedSpecimenIds(new Set());
+    setShowAddToPileModal(false);
+  };
+
   // Check if activePileId in URL still exists
   useEffect(() => {
     if (activePileId && !piles.find(p => p.id === activePileId)) {
@@ -84,6 +140,11 @@ const GalleryView: React.FC<GalleryViewProps> = ({
       updateUrlState({ activePileId: null }, true);
     }
   }, [activePileId, piles]);
+
+  // Clear selection when pile, page, or search query changes
+  useEffect(() => {
+    setSelectedSpecimenIds(new Set());
+  }, [activePileId, currentPage, searchQuery]);
 
   return (
     <div className="flex flex-col md:flex-row gap-2 relative">
@@ -206,6 +267,49 @@ const GalleryView: React.FC<GalleryViewProps> = ({
           </div>
         </div>
 
+        {/* Bulk Actions Toolbar */}
+        {layout === 'table' && selectedSpecimenIds.size > 0 && (
+          <div className="sticky top-0 z-10 bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-4">
+              <span className="font-semibold text-blue-900">
+                {selectedSpecimenIds.size} specimen{selectedSpecimenIds.size !== 1 ? 's' : ''} selected
+              </span>
+
+              <button
+                onClick={handleBulkAddToPile}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium text-sm flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Add to Pile
+              </button>
+
+              {activePileId && (
+                <button
+                  onClick={handleBulkRemoveFromPile}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4" />
+                  </svg>
+                  Remove from Current Pile
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={handleClearSelection}
+              className="text-blue-700 hover:text-blue-900 font-medium text-sm flex items-center gap-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Clear Selection
+            </button>
+          </div>
+        )}
+
         {/* Pagination Controls */}
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 mb-6">
@@ -291,6 +395,9 @@ const GalleryView: React.FC<GalleryViewProps> = ({
               sortColumn={sortColumn}
               sortDirection={sortDirection}
               onSort={onSort}
+              selectedIds={selectedSpecimenIds}
+              onToggleSelection={handleToggleSelection}
+              onToggleSelectAll={handleToggleSelectAll}
             />
           )
         ) : (
@@ -314,6 +421,16 @@ const GalleryView: React.FC<GalleryViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* Add to Pile Modal */}
+      {showAddToPileModal && (
+        <AddToPileModal
+          specimenIds={Array.from(selectedSpecimenIds)}
+          piles={piles}
+          onTogglePile={handleBulkTogglePile}
+          onClose={() => setShowAddToPileModal(false)}
+        />
+      )}
     </div>
   );
 };
