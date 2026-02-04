@@ -2,7 +2,7 @@
  * API Client for Herbarium Pro FastAPI Backend
  */
 
-import { Specimen, Pile, Annotation } from '../types';
+import { Specimen, Pile, Annotation, AuditLogListResponse, AuditLogStats } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -459,6 +459,58 @@ class ApiClient {
     });
 
     return await this.handleResponse<any[]>(response);
+  }
+
+  // ========================================
+  // Audit Logs
+  // ========================================
+
+  async getAuditLogs(params: {
+    table_name?: string;
+    record_id?: number;
+    operation?: string;
+    user_id?: number;
+    start_date?: string;
+    end_date?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<AuditLogListResponse> {
+    const queryParams = new URLSearchParams();
+
+    if (params.table_name) queryParams.append('table_name', params.table_name);
+    if (params.record_id) queryParams.append('record_id', params.record_id.toString());
+    if (params.operation) queryParams.append('operation', params.operation);
+    if (params.user_id) queryParams.append('user_id', params.user_id.toString());
+    if (params.start_date) queryParams.append('start_date', params.start_date);
+    if (params.end_date) queryParams.append('end_date', params.end_date);
+    if (params.page) queryParams.append('page', params.page.toString());
+    if (params.page_size) queryParams.append('page_size', params.page_size.toString());
+
+    const response = await fetch(`${API_BASE_URL}/audit-logs?${queryParams.toString()}`, {
+      headers: this.getAuthHeader(),
+    });
+
+    return await this.handleResponse<AuditLogListResponse>(response);
+  }
+
+  async getRecordAuditHistory(tableName: string, recordId: number): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/audit-logs/record/${tableName}/${recordId}`, {
+      headers: this.getAuthHeader(),
+    });
+
+    return await this.handleResponse<any>(response);
+  }
+
+  async getAuditStats(startDate?: string, endDate?: string): Promise<AuditLogStats> {
+    const queryParams = new URLSearchParams();
+    if (startDate) queryParams.append('start_date', startDate);
+    if (endDate) queryParams.append('end_date', endDate);
+
+    const response = await fetch(`${API_BASE_URL}/audit-logs/stats?${queryParams.toString()}`, {
+      headers: this.getAuthHeader(),
+    });
+
+    return await this.handleResponse<AuditLogStats>(response);
   }
 }
 

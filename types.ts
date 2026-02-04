@@ -93,3 +93,38 @@ export interface HistoryEntry {
   timestamp: number;
   data: any; // Context-specific data to facilitate UNDO
 }
+
+export interface AuditLog {
+  id: number;
+  table_name: string;
+  record_id: number;
+  operation: 'INSERT' | 'UPDATE' | 'DELETE';
+  user_id: number | null;
+  user_email: string | null;
+  timestamp: string; // ISO date string
+  old_values: Record<string, any> | null;
+  new_values: Record<string, any> | null;
+  changed_fields: string[] | null;
+  ip_address: string | null;
+  user_agent: string | null;
+}
+
+export interface AuditLogListResponse {
+  logs: AuditLog[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+export interface AuditLogStats {
+  total_logs: number;
+  by_operation: Record<string, number>;
+  by_table: Record<string, number>;
+  top_users: Array<{ email: string; count: number }>;
+  date_range: {
+    start: string | null;
+    end: string | null;
+  };
+}

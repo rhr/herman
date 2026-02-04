@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey, Table, Date, Index, Boolean, JSON, Enum
 )
 from sqlalchemy.orm import relationship, declarative_base
+import secrets
 
 Base = declarative_base()
 
@@ -22,6 +23,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     name = Column(String(255))
     institution = Column(String(255))
+    is_admin = Column(Boolean, default=False)  # Admin flag for managing invitations
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -234,3 +236,46 @@ class AuditLog(Base):
         Index('idx_audit_user_timestamp', 'user_id', 'timestamp'),
         Index('idx_audit_operation_timestamp', 'operation', 'timestamp'),
     )
+
+
+class Invitation(Base):
+    """
+    Invitation table for managing user registration invitations
+    Only users with valid invitation tokens can register
+    """
+    __tablename__ = "invitations"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    email = Column(String(255), nullable=False, index=True)
+    token = Column(String(64), unique=True, nullable=False, index=True)
+    created_by_user_id = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=True)  # Optional expiration
+    used_at = Column(DateTime, nullable=True)  # When the invitation was accepted
+    used_by_user_id = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    revoked = Column(Boolean, default=False)  # Admin can revoke invitations
+    revoked_at = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)  # Optional notes about why this user was invited
+
+    # Relationships
+    created_by = relationship("User", foreign_keys=[created_by_user_id])
+    used_by = relationship("User", foreign_keys=[used_by_user_id])
+
+    __table_args__ = (
+        Index('idx_invitation_email', 'email'),
+        Index('idx_invitation_token', 'token'),
+        Index('idx_invitation_status', 'used_at', 'revoked'),
+    )
+
+    @staticmethod
+    def generate_token():
+        """Generate a secure random token for invitations"""
+        return secrets.token_urlsafe(48)
+
+    def is_valid(self):
+        """Check if invitation is valid (not used, not revoked, not expired)"""
+        if self.revoked or self.used_at:
+            return False
+        if self.expires_at and datetime.utcnow() > self.expires_at:
+            return False
+        return True

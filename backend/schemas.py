@@ -289,6 +289,42 @@ class AuditLogListResponse(BaseModel):
 
 
 # ========================================
+# Invitation Schemas
+# ========================================
+
+class InvitationCreate(BaseModel):
+    email: EmailStr
+    expires_in_days: Optional[int] = 7  # Default 7 days expiration
+    notes: Optional[str] = None
+
+
+class InvitationResponse(BaseModel):
+    id: int
+    email: str
+    token: str
+    created_at: datetime
+    expires_at: Optional[datetime]
+    used_at: Optional[datetime]
+    revoked: bool
+    notes: Optional[str]
+    invitation_url: Optional[str] = None  # Will be populated with full URL
+
+    class Config:
+        from_attributes = True
+
+
+class InvitationListResponse(BaseModel):
+    invitations: List[InvitationResponse]
+    total: int
+
+
+class ValidateInvitationResponse(BaseModel):
+    valid: bool
+    email: Optional[str] = None
+    message: str
+
+
+# ========================================
 # Message Responses
 # ========================================
 

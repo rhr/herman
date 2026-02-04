@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 # Local imports
 from database import get_db, create_tables
-from models import User, Specimen, Image, Pile, Annotation, Taxon, Sequence, pile_specimens, AuditLog
+from models import User, Specimen, Image, Pile, Annotation, Taxon, Sequence, pile_specimens, AuditLog, Invitation
 from schemas import (
     UserRegister, UserLogin, TokenResponse, UserResponse,
     SpecimenCreate, SpecimenUpdate, SpecimenResponse, SpecimenListResponse,
@@ -22,6 +22,7 @@ from schemas import (
     AnnotationCreate, AnnotationResponse,
     SequenceCreate, SequenceUpdate, SequenceResponse,
     AuditLogResponse, AuditLogListResponse,
+    InvitationCreate, InvitationResponse, InvitationListResponse, ValidateInvitationResponse,
     MessageResponse
 )
 from auth import hash_password, verify_password, create_access_token, get_current_user
@@ -111,47 +112,110 @@ async def get_current_user_with_audit(
     return current_user
 
 
+def get_admin_user(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """
+    Dependency to ensure current user is an admin.
+    Raises 403 if user is not an admin.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
+
+
 # ========================================
 # Authentication Routes
 # ========================================
 
 @app.post("/api/auth/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserRegister, db: Session = Depends(get_db)):
-    """Register a new user - DISABLED"""
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Registration is disabled. Please contact the administrator for access."
+async def register(
+    email: str = Form(...),
+    password: str = Form(...),
+    name: Optional[str] = Form(None),
+    institution: Optional[str] = Form(None),
+    invitation_token: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Register a new user with a valid invitation token.
+    Invitation-only registration ensures controlled access.
+    """
+    # Validate invitation
+    invitation = db.query(Invitation).filter(
+        Invitation.token == invitation_token
+    ).first()
+
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid invitation token"
+        )
+
+    if not invitation.is_valid():
+        if invitation.used_at:
+            detail = "This invitation has already been used"
+        elif invitation.revoked:
+            detail = "This invitation has been revoked"
+        else:
+            detail = "This invitation has expired"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail
+        )
+
+    # Verify email matches invitation
+    if email.lower() != invitation.email.lower():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email does not match invitation"
+        )
+
+    # Check if email already exists
+    existing_user = db.query(User).filter(User.email == email).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+
+    # Validate password length
+    if len(password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters"
+        )
+
+    # Create new user
+    hashed_password = hash_password(password)
+    new_user = User(
+        email=email,
+        password_hash=hashed_password,
+        name=name,
+        institution=institution,
+        is_admin=False  # New users are not admins by default
     )
 
-    # Registration code disabled below
-    # # Check if email already exists
-    # existing_user = db.query(User).filter(User.email == user_data.email).first()
-    # if existing_user:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_400_BAD_REQUEST,
-    #         detail="Email already registered"
-    #     )
-    #
-    # # Create new user
-    # hashed_password = hash_password(user_data.password)
-    # new_user = User(
-    #     email=user_data.email,
-    #     password_hash=hashed_password,
-    #     name=user_data.name,
-    #     institution=user_data.institution
-    # )
-    #
-    # db.add(new_user)
-    # db.commit()
-    # db.refresh(new_user)
-    #
-    # # Generate token (convert ID to string for JWT)
-    # access_token = create_access_token(data={"sub": str(new_user.id)})
-    #
-    # return TokenResponse(
-    #     access_token=access_token,
-    #     user=UserResponse.from_orm(new_user)
-    # )
+    db.add(new_user)
+    db.flush()  # Get user ID before marking invitation as used
+
+    # Mark invitation as used
+    invitation.used_at = datetime.utcnow()
+    invitation.used_by_user_id = new_user.id
+
+    db.commit()
+    db.refresh(new_user)
+
+    # Generate token (convert ID to string for JWT)
+    access_token = create_access_token(data={"sub": str(new_user.id)})
+
+    return TokenResponse(
+        access_token=access_token,
+        user=UserResponse.from_orm(new_user)
+    )
 
 
 @app.post("/api/auth/login", response_model=TokenResponse)
@@ -178,6 +242,239 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current user information"""
     return UserResponse.from_orm(current_user)
+
+
+# ========================================
+# Invitation Routes (Admin Only)
+# ========================================
+
+@app.post("/api/invitations", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
+async def create_invitation(
+    invitation_data: InvitationCreate,
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new invitation for a user to register.
+    Admin-only endpoint.
+    """
+    # Check if user is already registered
+    existing_user = db.query(User).filter(User.email == invitation_data.email).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User with this email already exists"
+        )
+
+    # Check for existing pending invitation
+    existing_invitation = db.query(Invitation).filter(
+        Invitation.email == invitation_data.email,
+        Invitation.used_at.is_(None),
+        Invitation.revoked == False
+    ).first()
+
+    if existing_invitation:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Active invitation already exists for this email"
+        )
+
+    # Calculate expiration date
+    expires_at = None
+    if invitation_data.expires_in_days:
+        from datetime import timedelta
+        expires_at = datetime.utcnow() + timedelta(days=invitation_data.expires_in_days)
+
+    # Create invitation
+    new_invitation = Invitation(
+        email=invitation_data.email,
+        token=Invitation.generate_token(),
+        created_by_user_id=admin_user.id,
+        expires_at=expires_at,
+        notes=invitation_data.notes
+    )
+
+    db.add(new_invitation)
+    db.commit()
+    db.refresh(new_invitation)
+
+    # Generate invitation URL
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    invitation_url = f"{frontend_url}/register?token={new_invitation.token}"
+
+    response = InvitationResponse.from_orm(new_invitation)
+    response.invitation_url = invitation_url
+
+    return response
+
+
+@app.get("/api/invitations", response_model=InvitationListResponse)
+async def list_invitations(
+    status_filter: Optional[str] = Query(None, description="Filter by status: pending, used, revoked, expired"),
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """
+    List all invitations with optional status filtering.
+    Admin-only endpoint.
+    """
+    query = db.query(Invitation)
+
+    # Apply status filter
+    if status_filter == 'pending':
+        query = query.filter(
+            Invitation.used_at.is_(None),
+            Invitation.revoked == False
+        )
+        # Also filter out expired
+        query = query.filter(
+            or_(
+                Invitation.expires_at.is_(None),
+                Invitation.expires_at > datetime.utcnow()
+            )
+        )
+    elif status_filter == 'used':
+        query = query.filter(Invitation.used_at.isnot(None))
+    elif status_filter == 'revoked':
+        query = query.filter(Invitation.revoked == True)
+    elif status_filter == 'expired':
+        query = query.filter(
+            Invitation.expires_at.isnot(None),
+            Invitation.expires_at <= datetime.utcnow(),
+            Invitation.used_at.is_(None)
+        )
+
+    invitations = query.order_by(Invitation.created_at.desc()).all()
+
+    # Generate invitation URLs for pending invitations
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    invitation_responses = []
+    for inv in invitations:
+        inv_response = InvitationResponse.from_orm(inv)
+        if inv.is_valid():
+            inv_response.invitation_url = f"{frontend_url}/register?token={inv.token}"
+        invitation_responses.append(inv_response)
+
+    return InvitationListResponse(
+        invitations=invitation_responses,
+        total=len(invitation_responses)
+    )
+
+
+@app.delete("/api/invitations/{invitation_id}", response_model=MessageResponse)
+async def revoke_invitation(
+    invitation_id: int,
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Revoke an invitation (prevent it from being used).
+    Admin-only endpoint.
+    """
+    invitation = db.query(Invitation).filter(Invitation.id == invitation_id).first()
+
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found"
+        )
+
+    if invitation.used_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot revoke an invitation that has already been used"
+        )
+
+    invitation.revoked = True
+    invitation.revoked_at = datetime.utcnow()
+
+    db.commit()
+
+    return MessageResponse(message="Invitation revoked successfully")
+
+
+@app.post("/api/invitations/{invitation_id}/resend", response_model=InvitationResponse)
+async def resend_invitation(
+    invitation_id: int,
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Resend/refresh an invitation by generating a new token and extending expiration.
+    Admin-only endpoint.
+    """
+    invitation = db.query(Invitation).filter(Invitation.id == invitation_id).first()
+
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found"
+        )
+
+    if invitation.used_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot resend an invitation that has already been used"
+        )
+
+    # Generate new token and extend expiration
+    invitation.token = Invitation.generate_token()
+    invitation.revoked = False
+    invitation.revoked_at = None
+
+    # Extend expiration by 7 days from now
+    from datetime import timedelta
+    invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+
+    db.commit()
+    db.refresh(invitation)
+
+    # Generate new invitation URL
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    invitation_url = f"{frontend_url}/register?token={invitation.token}"
+
+    response = InvitationResponse.from_orm(invitation)
+    response.invitation_url = invitation_url
+
+    return response
+
+
+@app.get("/api/invitations/validate/{token}", response_model=ValidateInvitationResponse)
+async def validate_invitation_token(
+    token: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Validate an invitation token (public endpoint, no auth required).
+    Returns whether the token is valid and the associated email.
+    """
+    invitation = db.query(Invitation).filter(Invitation.token == token).first()
+
+    if not invitation:
+        return ValidateInvitationResponse(
+            valid=False,
+            message="Invalid invitation token"
+        )
+
+    if not invitation.is_valid():
+        if invitation.used_at:
+            message = "This invitation has already been used"
+        elif invitation.revoked:
+            message = "This invitation has been revoked"
+        else:
+            message = "This invitation has expired"
+
+        return ValidateInvitationResponse(
+            valid=False,
+            email=invitation.email,
+            message=message
+        )
+
+    return ValidateInvitationResponse(
+        valid=True,
+        email=invitation.email,
+        message="Valid invitation"
+    )
 
 
 # ========================================

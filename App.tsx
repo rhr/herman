@@ -12,6 +12,7 @@ import GalleryView from './components/views/GalleryView';
 import SpecimenDetailView from './components/views/SpecimenDetailView';
 import AddSpecimenView from './components/views/AddSpecimenView';
 import EditSpecimenView from './components/views/EditSpecimenView';
+import AuditLogsView from './components/views/AuditLogsView';
 import { DatabaseService } from './services/databaseService';
 import { apiClient } from './services/apiClient';
 import { useSpecimenUrl } from './hooks/useSpecimenUrl';
@@ -663,6 +664,15 @@ const App: React.FC = () => {
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
               )}
             </button>
+            <button
+              onClick={() => window.location.href = '/audit-logs'}
+              className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
+              title="Audit Logs"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </button>
             {currentUser && (
               <>
                 <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg">
@@ -757,6 +767,10 @@ const App: React.FC = () => {
                   onSubmit={handleSaveSpecimen}
                 />
               }
+            />
+            <Route
+              path="/audit-logs"
+              element={<AuditLogsView />}
             />
           </Routes>
         )}
