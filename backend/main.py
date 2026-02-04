@@ -1,7 +1,7 @@
 """
 FastAPI main application for Herbarium Pro
 """
-from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Form, Query
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Form, Query, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 # Local imports
 from database import get_db, create_tables
-from models import User, Specimen, Image, Pile, Annotation, Taxon, Sequence, pile_specimens
+from models import User, Specimen, Image, Pile, Annotation, Taxon, Sequence, pile_specimens, AuditLog
 from schemas import (
     UserRegister, UserLogin, TokenResponse, UserResponse,
     SpecimenCreate, SpecimenUpdate, SpecimenResponse, SpecimenListResponse,
@@ -21,10 +21,12 @@ from schemas import (
     PileCreate, PileUpdate, PileResponse,
     AnnotationCreate, AnnotationResponse,
     SequenceCreate, SequenceUpdate, SequenceResponse,
+    AuditLogResponse, AuditLogListResponse,
     MessageResponse
 )
 from auth import hash_password, verify_password, create_access_token, get_current_user
 from storage import file_storage
+from audit import register_audit_listeners, set_audit_context
 
 load_dotenv()
 
@@ -56,9 +58,19 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.on_event("startup")
 async def startup_event():
-    """Create database tables on startup"""
+    """Create database tables and register audit listeners on startup"""
     create_tables()
+
+    # Register audit listeners for models to track
+    register_audit_listeners(Specimen)
+    register_audit_listeners(User)
+    register_audit_listeners(Pile)
+    register_audit_listeners(Image)
+    register_audit_listeners(Annotation)
+    register_audit_listeners(Sequence)
+
     print("🚀 Herbarium Pro API started successfully")
+    print("📝 Audit logging enabled for: Specimen, User, Pile, Image, Annotation, Sequence")
 
 
 # ========================================
@@ -73,6 +85,30 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+
+# ========================================
+# Dependencies
+# ========================================
+
+async def get_current_user_with_audit(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> User:
+    """
+    Dependency that gets the current user and sets audit context.
+    Use this instead of get_current_user for routes that modify data.
+    """
+    # Set audit context with user info and request metadata
+    set_audit_context(
+        user_id=current_user.id,
+        user_email=current_user.email,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get('user-agent')
+    )
+
+    return current_user
 
 
 # ========================================
@@ -402,6 +438,7 @@ async def get_specimen_by_code(
 
 @app.post("/api/specimens", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
 async def create_specimen(
+    request: Request,
     # Form fields
     code: Optional[str] = Form(None),
     scientific_name: str = Form(...),
@@ -426,7 +463,7 @@ async def create_specimen(
     # Image files
     images: List[UploadFile] = File(default=[]),
     # Dependencies
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Create a new specimen with images"""
@@ -496,6 +533,7 @@ async def create_specimen(
 
 @app.put("/api/specimens/{specimen_id}", response_model=MessageResponse)
 async def update_specimen(
+    request: Request,
     specimen_id: int,
     # Form fields (same as create, all optional for updates)
     code: Optional[str] = Form(None),
@@ -521,7 +559,7 @@ async def update_specimen(
     # Image files (optional - for adding new images)
     images: List[UploadFile] = File(default=[]),
     # Dependencies
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Update a specimen and optionally add new images"""
@@ -596,8 +634,9 @@ async def update_specimen(
 
 @app.put("/api/images/{image_id}/set-primary", response_model=MessageResponse)
 async def set_primary_image(
+    request: Request,
     image_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Set an image as the primary image (position 0) for its specimen"""
@@ -642,9 +681,10 @@ async def set_primary_image(
 
 @app.put("/api/images/{image_id}/caption", response_model=MessageResponse)
 async def update_image_caption(
+    request: Request,
     image_id: int,
     caption: str = Form(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Update the caption for an image"""
@@ -677,8 +717,9 @@ async def update_image_caption(
 
 @app.delete("/api/images/{image_id}", response_model=MessageResponse)
 async def delete_image(
+    request: Request,
     image_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Delete an image from a specimen"""
@@ -728,8 +769,9 @@ async def delete_image(
 
 @app.delete("/api/specimens/{specimen_id}", response_model=MessageResponse)
 async def delete_specimen(
+    request: Request,
     specimen_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Delete a specimen"""
@@ -780,8 +822,9 @@ async def get_all_piles(
 
 @app.post("/api/piles", response_model=PileResponse, status_code=status.HTTP_201_CREATED)
 async def create_pile(
+    request: Request,
     pile_data: PileCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Create a new pile"""
@@ -803,9 +846,10 @@ async def create_pile(
 
 @app.put("/api/piles/{pile_id}", response_model=MessageResponse)
 async def update_pile(
+    request: Request,
     pile_id: int,
     pile_data: PileUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Update a pile"""
@@ -831,8 +875,9 @@ async def update_pile(
 
 @app.delete("/api/piles/{pile_id}", response_model=MessageResponse)
 async def delete_pile(
+    request: Request,
     pile_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Delete a pile"""
@@ -855,9 +900,10 @@ async def delete_pile(
 
 @app.post("/api/piles/{pile_id}/specimens/{specimen_id}", response_model=MessageResponse)
 async def add_specimen_to_pile(
+    request: Request,
     pile_id: int,
     specimen_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Add a specimen to a pile"""
@@ -887,9 +933,10 @@ async def add_specimen_to_pile(
 
 @app.delete("/api/piles/{pile_id}/specimens/{specimen_id}", response_model=MessageResponse)
 async def remove_specimen_from_pile(
+    request: Request,
     pile_id: int,
     specimen_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Remove a specimen from a pile"""
@@ -917,9 +964,10 @@ async def remove_specimen_from_pile(
 
 @app.post("/api/specimens/{specimen_id}/annotations", response_model=AnnotationResponse, status_code=status.HTTP_201_CREATED)
 async def create_annotation(
+    request: Request,
     specimen_id: int,
     annotation_data: AnnotationCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Add an annotation to a specimen"""
@@ -949,8 +997,9 @@ async def create_annotation(
 
 @app.delete("/api/annotations/{annotation_id}", response_model=MessageResponse)
 async def delete_annotation(
+    request: Request,
     annotation_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Delete an annotation"""
@@ -1223,6 +1272,7 @@ async def get_sequence(
 
 @app.post("/api/specimens/{specimen_id}/sequences", status_code=201)
 async def create_sequence(
+    request: Request,
     specimen_id: int,
     gene: Optional[str] = Form(None),
     genbank_id: Optional[str] = Form(None),
@@ -1231,7 +1281,7 @@ async def create_sequence(
     sequence: str = Form(...),
     suspect: bool = Form(False),
     comments: Optional[str] = Form(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Create a new sequence for a specimen"""
@@ -1265,6 +1315,7 @@ async def create_sequence(
 
 @app.put("/api/sequences/{sequence_id}", response_model=MessageResponse)
 async def update_sequence(
+    request: Request,
     sequence_id: int,
     gene: Optional[str] = Form(None),
     genbank_id: Optional[str] = Form(None),
@@ -1273,7 +1324,7 @@ async def update_sequence(
     sequence: Optional[str] = Form(None),
     suspect: Optional[bool] = Form(None),
     comments: Optional[str] = Form(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Update an existing sequence"""
@@ -1318,8 +1369,9 @@ async def update_sequence(
 
 @app.delete("/api/sequences/{sequence_id}", response_model=MessageResponse)
 async def delete_sequence(
+    request: Request,
     sequence_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_audit),
     db: Session = Depends(get_db)
 ):
     """Delete a sequence"""
@@ -1342,6 +1394,203 @@ async def delete_sequence(
     db.commit()
 
     return {"message": "Sequence deleted successfully"}
+
+
+# ========================================
+# Audit Log Routes
+# ========================================
+
+@app.get("/api/audit-logs", response_model=AuditLogListResponse)
+async def get_audit_logs(
+    table_name: Optional[str] = Query(None, description="Filter by table name (specimens, users, piles, etc.)"),
+    record_id: Optional[int] = Query(None, description="Filter by specific record ID"),
+    operation: Optional[str] = Query(None, description="Filter by operation type (INSERT, UPDATE, DELETE)"),
+    user_id: Optional[int] = Query(None, description="Filter by user who made the change"),
+    start_date: Optional[datetime] = Query(None, description="Filter by start date (ISO format)"),
+    end_date: Optional[datetime] = Query(None, description="Filter by end date (ISO format)"),
+    page: int = Query(1, ge=1, description="Page number (starts at 1)"),
+    page_size: int = Query(50, ge=1, le=200, description="Items per page (max 200)"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Query audit logs with flexible filtering options.
+    Returns paginated list of audit log entries showing all database changes.
+
+    Use this endpoint to:
+    - View change history for a specific record (table_name + record_id)
+    - Track user activity (user_id)
+    - Investigate deletions (operation=DELETE)
+    - Review changes in a date range (start_date + end_date)
+    """
+    # Build query
+    query = db.query(AuditLog)
+
+    # Apply filters
+    if table_name:
+        query = query.filter(AuditLog.table_name == table_name)
+
+    if record_id is not None:
+        query = query.filter(AuditLog.record_id == record_id)
+
+    if operation:
+        # Validate operation value
+        if operation.upper() not in ['INSERT', 'UPDATE', 'DELETE']:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid operation. Must be INSERT, UPDATE, or DELETE"
+            )
+        query = query.filter(AuditLog.operation == operation.upper())
+
+    if user_id is not None:
+        query = query.filter(AuditLog.user_id == user_id)
+
+    if start_date:
+        query = query.filter(AuditLog.timestamp >= start_date)
+
+    if end_date:
+        query = query.filter(AuditLog.timestamp <= end_date)
+
+    # Get total count (before pagination)
+    total = query.count()
+
+    # Calculate pagination
+    offset = (page - 1) * page_size
+    total_pages = (total + page_size - 1) // page_size
+
+    # Apply pagination and ordering (newest first)
+    logs = query.order_by(AuditLog.timestamp.desc())\
+               .offset(offset)\
+               .limit(page_size)\
+               .all()
+
+    # Format response
+    log_responses = [AuditLogResponse.from_orm(log) for log in logs]
+
+    return AuditLogListResponse(
+        logs=log_responses,
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_next=page < total_pages,
+        has_prev=page > 1
+    )
+
+
+@app.get("/api/audit-logs/record/{table_name}/{record_id}")
+async def get_record_audit_history(
+    table_name: str,
+    record_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get complete change history for a specific record.
+    Returns all audit log entries for the given table and record ID, ordered chronologically.
+
+    Useful for viewing the full lifecycle of a record (creation, updates, deletion).
+    """
+    # Validate table name (prevent SQL injection)
+    valid_tables = ['specimens', 'users', 'piles', 'images', 'annotations', 'sequences']
+    if table_name not in valid_tables:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid table name. Must be one of: {', '.join(valid_tables)}"
+        )
+
+    # Query audit logs for this specific record
+    logs = db.query(AuditLog)\
+             .filter(
+                 AuditLog.table_name == table_name,
+                 AuditLog.record_id == record_id
+             )\
+             .order_by(AuditLog.timestamp.asc())\
+             .all()
+
+    # Format response
+    log_responses = [AuditLogResponse.from_orm(log) for log in logs]
+
+    return {
+        "table_name": table_name,
+        "record_id": record_id,
+        "total_changes": len(log_responses),
+        "history": log_responses
+    }
+
+
+@app.get("/api/audit-logs/stats")
+async def get_audit_stats(
+    start_date: Optional[datetime] = Query(None, description="Start date for stats"),
+    end_date: Optional[datetime] = Query(None, description="End date for stats"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get audit log statistics and summary.
+    Returns counts by operation type, table, and user.
+
+    Useful for monitoring overall system activity and user behavior.
+    """
+    # Build base query
+    query = db.query(AuditLog)
+
+    if start_date:
+        query = query.filter(AuditLog.timestamp >= start_date)
+    if end_date:
+        query = query.filter(AuditLog.timestamp <= end_date)
+
+    # Total count
+    total_logs = query.count()
+
+    # Count by operation
+    operations = db.query(
+        AuditLog.operation,
+        func.count(AuditLog.id).label('count')
+    )
+    if start_date:
+        operations = operations.filter(AuditLog.timestamp >= start_date)
+    if end_date:
+        operations = operations.filter(AuditLog.timestamp <= end_date)
+    operations = operations.group_by(AuditLog.operation).all()
+
+    # Count by table
+    tables = db.query(
+        AuditLog.table_name,
+        func.count(AuditLog.id).label('count')
+    )
+    if start_date:
+        tables = tables.filter(AuditLog.timestamp >= start_date)
+    if end_date:
+        tables = tables.filter(AuditLog.timestamp <= end_date)
+    tables = tables.group_by(AuditLog.table_name)\
+                   .order_by(func.count(AuditLog.id).desc())\
+                   .all()
+
+    # Count by user (top 10)
+    users = db.query(
+        AuditLog.user_email,
+        func.count(AuditLog.id).label('count')
+    )
+    if start_date:
+        users = users.filter(AuditLog.timestamp >= start_date)
+    if end_date:
+        users = users.filter(AuditLog.timestamp <= end_date)
+    users = users.filter(AuditLog.user_email.isnot(None))\
+                 .group_by(AuditLog.user_email)\
+                 .order_by(func.count(AuditLog.id).desc())\
+                 .limit(10)\
+                 .all()
+
+    return {
+        "total_logs": total_logs,
+        "by_operation": {op: count for op, count in operations},
+        "by_table": {table: count for table, count in tables},
+        "top_users": [{"email": email, "count": count} for email, count in users],
+        "date_range": {
+            "start": start_date.isoformat() if start_date else None,
+            "end": end_date.isoformat() if end_date else None
+        }
+    }
 
 
 if __name__ == "__main__":

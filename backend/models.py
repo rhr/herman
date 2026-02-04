@@ -7,7 +7,7 @@ and simpler references. UUIDs were removed in favor of BIGINT primary keys.
 from datetime import datetime
 from sqlalchemy import (
     Column, String, Integer, BigInteger, Float, Text, DateTime,
-    ForeignKey, Table, Date, Index, Boolean
+    ForeignKey, Table, Date, Index, Boolean, JSON, Enum
 )
 from sqlalchemy.orm import relationship, declarative_base
 
@@ -203,4 +203,34 @@ class Taxon(Base):
         Index('idx_taxa_genus', 'genus'),
         Index('idx_taxa_scientific_name', 'scientific_name', mysql_length=100),
         Index('idx_taxa_rank_status', 'rank', 'status'),
+    )
+
+
+class AuditLog(Base):
+    """
+    Audit log table for tracking all database changes
+    Captures CREATE, UPDATE, and DELETE operations on tracked models
+    """
+    __tablename__ = "audit_logs"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    table_name = Column(String(100), nullable=False, index=True)
+    record_id = Column(BigInteger, nullable=False, index=True)
+    operation = Column(Enum('INSERT', 'UPDATE', 'DELETE', name='operation_enum'), nullable=False, index=True)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_email = Column(String(255), nullable=True)  # Denormalized for convenience
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    old_values = Column(JSON, nullable=True)  # Previous state (for UPDATE and DELETE)
+    new_values = Column(JSON, nullable=True)  # New state (for INSERT and UPDATE)
+    changed_fields = Column(JSON, nullable=True)  # List of changed field names (for UPDATE)
+    ip_address = Column(String(45), nullable=True)  # Track request origin (supports IPv6)
+    user_agent = Column(String(500), nullable=True)  # Track client
+
+    # Relationship
+    user = relationship("User")
+
+    __table_args__ = (
+        Index('idx_audit_table_record', 'table_name', 'record_id'),
+        Index('idx_audit_user_timestamp', 'user_id', 'timestamp'),
+        Index('idx_audit_operation_timestamp', 'operation', 'timestamp'),
     )

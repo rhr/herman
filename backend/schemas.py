@@ -258,6 +258,37 @@ class SequenceResponse(BaseModel):
 
 
 # ========================================
+# Audit Log Schemas
+# ========================================
+
+class AuditLogResponse(BaseModel):
+    id: int
+    table_name: str
+    record_id: int
+    operation: str
+    user_id: Optional[int]
+    user_email: Optional[str]
+    timestamp: datetime
+    old_values: Optional[dict]
+    new_values: Optional[dict]
+    changed_fields: Optional[list]
+    ip_address: Optional[str]
+    user_agent: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+class AuditLogListResponse(BaseModel):
+    logs: List[AuditLogResponse]
+    total: int
+    page: int
+    page_size: int
+    has_next: bool
+    has_prev: bool
+
+
+# ========================================
 # Message Responses
 # ========================================
 
