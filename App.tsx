@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { Specimen, Annotation, Pile, HistoryEntry, ActionType } from './types';
 import SpecimenForm from './components/SpecimenForm';
 import SpecimenDetail from './components/SpecimenDetail';
@@ -37,6 +37,7 @@ const App: React.FC = () => {
   // URL-driven state
   const { urlState, updateUrlState, navigateToSpecimen, navigateToGallery, navigateToAdd, navigateToEdit } = useSpecimenUrl();
   const { searchQuery, sortColumn, sortDirection, currentPage, activePileId, layout } = urlState;
+  const navigate = useNavigate();
 
   // Local state
   const [specimens, setSpecimens] = useState<Specimen[]>([]);
@@ -674,7 +675,7 @@ const App: React.FC = () => {
               )}
             </button>
             <button
-              onClick={() => window.location.href = '/audit-logs'}
+              onClick={() => navigate('/audit-logs')}
               className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
               title="Audit Logs"
             >
