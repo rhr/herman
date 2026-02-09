@@ -492,20 +492,17 @@ async def get_all_specimens(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get paginated specimens for the authenticated user with optional search, sorting, and pile filtering"""
+    """Get paginated specimens with optional search, sorting, and pile filtering"""
     # Calculate offset
     offset = (page - 1) * page_size
 
-    # Build base query
-    base_query = db.query(Specimen).filter(Specimen.user_id == current_user.id)
+    # Build base query - all authenticated users can see all specimens
+    base_query = db.query(Specimen)
 
     # Apply pile filter if provided
     if pile_id is not None:
-        # Verify the pile belongs to the current user
-        pile = db.query(Pile).filter(
-            Pile.id == pile_id,
-            Pile.user_id == current_user.id
-        ).first()
+        # Get the pile (any authenticated user can access any pile)
+        pile = db.query(Pile).filter(Pile.id == pile_id).first()
 
         if not pile:
             raise HTTPException(status_code=404, detail="Pile not found")
@@ -626,8 +623,7 @@ async def get_specimen(
         joinedload(Specimen.annotations).joinedload(Annotation.user),
         joinedload(Specimen.sequences)
     ).filter(
-        Specimen.id == specimen_id,
-        Specimen.user_id == current_user.id
+        Specimen.id == specimen_id
     ).first()
 
     if not specimen:
@@ -685,8 +681,7 @@ async def get_specimen_by_code(
         joinedload(Specimen.annotations).joinedload(Annotation.user),
         joinedload(Specimen.sequences)
     ).filter(
-        Specimen.code == code,
-        Specimen.user_id == current_user.id
+        Specimen.code == code
     ).first()
 
     if not specimen:
@@ -861,8 +856,7 @@ async def update_specimen(
 ):
     """Update a specimen and optionally add new images"""
     specimen = db.query(Specimen).filter(
-        Specimen.id == specimen_id,
-        Specimen.user_id == current_user.id
+        Specimen.id == specimen_id
     ).first()
 
     if not specimen:
@@ -945,10 +939,9 @@ async def set_primary_image(
             detail="Image not found"
         )
 
-    # Verify the user owns the specimen
+    # Get the specimen
     specimen = db.query(Specimen).filter(
-        Specimen.id == image.specimen_id,
-        Specimen.user_id == current_user.id
+        Specimen.id == image.specimen_id
     ).first()
 
     if not specimen:
@@ -993,10 +986,9 @@ async def update_image_caption(
             detail="Image not found"
         )
 
-    # Verify the user owns the specimen
+    # Get the specimen
     specimen = db.query(Specimen).filter(
-        Specimen.id == image.specimen_id,
-        Specimen.user_id == current_user.id
+        Specimen.id == image.specimen_id
     ).first()
 
     if not specimen:
@@ -1028,10 +1020,9 @@ async def delete_image(
             detail="Image not found"
         )
 
-    # Verify the user owns the specimen
+    # Get the specimen
     specimen = db.query(Specimen).filter(
-        Specimen.id == image.specimen_id,
-        Specimen.user_id == current_user.id
+        Specimen.id == image.specimen_id
     ).first()
 
     if not specimen:
@@ -1073,8 +1064,7 @@ async def delete_specimen(
 ):
     """Delete a specimen"""
     specimen = db.query(Specimen).filter(
-        Specimen.id == specimen_id,
-        Specimen.user_id == current_user.id
+        Specimen.id == specimen_id
     ).first()
 
     if not specimen:
@@ -1102,10 +1092,8 @@ async def get_all_piles(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all piles for the authenticated user"""
-    piles = db.query(Pile).filter(
-        Pile.user_id == current_user.id
-    ).order_by(Pile.created_at.desc()).all()
+    """Get all piles"""
+    piles = db.query(Pile).order_by(Pile.created_at.desc()).all()
 
     result = []
     for pile in piles:
@@ -1151,8 +1139,7 @@ async def update_pile(
 ):
     """Update a pile"""
     pile = db.query(Pile).filter(
-        Pile.id == pile_id,
-        Pile.user_id == current_user.id
+        Pile.id == pile_id
     ).first()
 
     if not pile:
@@ -1179,8 +1166,7 @@ async def delete_pile(
 ):
     """Delete a pile"""
     pile = db.query(Pile).filter(
-        Pile.id == pile_id,
-        Pile.user_id == current_user.id
+        Pile.id == pile_id
     ).first()
 
     if not pile:
@@ -1205,13 +1191,11 @@ async def add_specimen_to_pile(
 ):
     """Add a specimen to a pile"""
     pile = db.query(Pile).filter(
-        Pile.id == pile_id,
-        Pile.user_id == current_user.id
+        Pile.id == pile_id
     ).first()
 
     specimen = db.query(Specimen).filter(
-        Specimen.id == specimen_id,
-        Specimen.user_id == current_user.id
+        Specimen.id == specimen_id
     ).first()
 
     if not pile or not specimen:
@@ -1238,8 +1222,7 @@ async def remove_specimen_from_pile(
 ):
     """Remove a specimen from a pile"""
     pile = db.query(Pile).filter(
-        Pile.id == pile_id,
-        Pile.user_id == current_user.id
+        Pile.id == pile_id
     ).first()
 
     if not pile:
@@ -1269,8 +1252,7 @@ async def create_annotation(
 ):
     """Add an annotation to a specimen"""
     specimen = db.query(Specimen).filter(
-        Specimen.id == specimen_id,
-        Specimen.user_id == current_user.id
+        Specimen.id == specimen_id
     ).first()
 
     if not specimen:
@@ -1309,16 +1291,15 @@ async def delete_annotation(
             detail="Annotation not found"
         )
 
-    # Verify the user owns the specimen (and thus can delete annotations)
+    # Get the specimen
     specimen = db.query(Specimen).filter(
-        Specimen.id == annotation.specimen_id,
-        Specimen.user_id == current_user.id
+        Specimen.id == annotation.specimen_id
     ).first()
 
     if not specimen:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Specimen not found or you don't have permission to delete this annotation"
+            detail="Specimen not found"
         )
 
     # Delete the annotation
@@ -1527,10 +1508,9 @@ async def get_specimen_sequences(
     db: Session = Depends(get_db)
 ):
     """Get all sequences for a specific specimen"""
-    # Verify user owns the specimen
+    # Get the specimen
     specimen = db.query(Specimen).filter(
-        Specimen.id == specimen_id,
-        Specimen.user_id == current_user.id
+        Specimen.id == specimen_id
     ).first()
 
     if not specimen:
@@ -1555,14 +1535,13 @@ async def get_sequence(
     if not sequence:
         raise HTTPException(status_code=404, detail="Sequence not found")
 
-    # Verify user owns the specimen
+    # Get the specimen
     specimen = db.query(Specimen).filter(
-        Specimen.id == sequence.specimen_id,
-        Specimen.user_id == current_user.id
+        Specimen.id == sequence.specimen_id
     ).first()
 
     if not specimen:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=404, detail="Specimen not found")
 
     return sequence
 
@@ -1582,10 +1561,9 @@ async def create_sequence(
     db: Session = Depends(get_db)
 ):
     """Create a new sequence for a specimen"""
-    # Verify user owns the specimen
+    # Get the specimen
     specimen = db.query(Specimen).filter(
-        Specimen.id == specimen_id,
-        Specimen.user_id == current_user.id
+        Specimen.id == specimen_id
     ).first()
 
     if not specimen:
@@ -1631,14 +1609,13 @@ async def update_sequence(
     if not seq:
         raise HTTPException(status_code=404, detail="Sequence not found")
 
-    # Verify user owns the specimen
+    # Get the specimen
     specimen = db.query(Specimen).filter(
-        Specimen.id == seq.specimen_id,
-        Specimen.user_id == current_user.id
+        Specimen.id == seq.specimen_id
     ).first()
 
     if not specimen:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=404, detail="Specimen not found")
 
     # Update fields if provided
     if gene is not None:
@@ -1678,14 +1655,13 @@ async def delete_sequence(
     if not seq:
         raise HTTPException(status_code=404, detail="Sequence not found")
 
-    # Verify user owns the specimen
+    # Get the specimen
     specimen = db.query(Specimen).filter(
-        Specimen.id == seq.specimen_id,
-        Specimen.user_id == current_user.id
+        Specimen.id == seq.specimen_id
     ).first()
 
     if not specimen:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=404, detail="Specimen not found")
 
     db.delete(seq)
     db.commit()
