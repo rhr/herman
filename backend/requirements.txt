@@ -22,3 +22,6 @@ fastapi-cors==0.0.6
 
 # File handling
 aiofiles==23.2.1
+
+# HTTP client (for scripts)
+requests==2.31.0

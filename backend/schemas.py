@@ -27,6 +27,7 @@ class UserResponse(BaseModel):
     email: str
     name: Optional[str]
     institution: Optional[str]
+    is_admin: bool = False
     created_at: datetime
 
     class Config:
