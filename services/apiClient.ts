@@ -48,6 +48,39 @@ class ApiClient {
     return data;
   }
 
+  async registerWithInvitation(
+    email: string,
+    password: string,
+    invitationToken: string,
+    name?: string,
+    institution?: string
+  ): Promise<LoginResponse> {
+    const formData = new FormData();
+    formData.append('email', email);
+    formData.append('password', password);
+    formData.append('invitation_token', invitationToken);
+    if (name) formData.append('name', name);
+    if (institution) formData.append('institution', institution);
+
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await this.handleResponse<LoginResponse>(response);
+    localStorage.setItem('authToken', data.access_token);
+    return data;
+  }
+
+  async validateInvitationToken(token: string): Promise<{
+    valid: boolean;
+    email: string;
+    message: string;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/invitations/validate/${token}`);
+    return this.handleResponse(response);
+  }
+
   async login(email: string, password: string): Promise<LoginResponse> {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',

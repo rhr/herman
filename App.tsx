@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { Specimen, Annotation, Pile, HistoryEntry, ActionType } from './types';
 import SpecimenForm from './components/SpecimenForm';
 import SpecimenDetail from './components/SpecimenDetail';
@@ -13,6 +13,7 @@ import SpecimenDetailView from './components/views/SpecimenDetailView';
 import AddSpecimenView from './components/views/AddSpecimenView';
 import EditSpecimenView from './components/views/EditSpecimenView';
 import AuditLogsView from './components/views/AuditLogsView';
+import RegisterView from './components/views/RegisterView';
 import { DatabaseService } from './services/databaseService';
 import { apiClient } from './services/apiClient';
 import { useSpecimenUrl } from './hooks/useSpecimenUrl';
@@ -606,6 +607,14 @@ const App: React.FC = () => {
       updateUrlState({ currentPage: newPage }, true);
     }
   };
+
+  const location = useLocation();
+  const isRegisterPage = location.pathname === '/register';
+
+  // Render register page without header/footer
+  if (isRegisterPage) {
+    return <RegisterView />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col">

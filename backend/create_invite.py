@@ -72,7 +72,6 @@ def login(username, password, api_url):
             data = response.json()
             token = data.get('access_token')
             user = data.get('user', {})
-            print(user)
 
             if user.get('is_admin'):
                 print_success(f"Logged in as admin: {user.get('name', username)}")
@@ -159,6 +158,7 @@ def create_invitation(token, email, expiry_days, notes, api_url):
 
         if response.status_code == 201:
             data = response.json()
+            print(data)
             print_success("Invitation created successfully!")
             print()
             print(f"{BOLD}Invitation Details:{RESET}")
