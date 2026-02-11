@@ -33,3 +33,5 @@ backend/assets/*
 backend/imports/*
 backend/__pycache__
 backend/uploads/*
+
+__pycache__
