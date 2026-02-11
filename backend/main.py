@@ -520,7 +520,7 @@ async def get_all_specimens(
             or_(
                 Specimen.scientific_name.ilike(search_pattern),
                 Specimen.family.ilike(search_pattern),
-                Specimen.genus.ilike(search_pattern),
+                Specimen.code.ilike(search_pattern),
                 Specimen.collector.ilike(search_pattern),
                 Specimen.collector_number.ilike(search_pattern)
             )
