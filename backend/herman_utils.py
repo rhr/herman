@@ -223,6 +223,7 @@ class AuditedSession:
         import audit
 
         self._modules_imported = True
+        _register_audit_listeners()
 
         if self.verbose:
             print(f"✓ Connected to herman backend: {self.backend_path}")
@@ -608,6 +609,23 @@ class BulkAuditedOperation:
     def commit(self):
         """Manually commit remaining items."""
         self._commit_batch()
+
+
+_audit_listeners_registered = False
+
+
+def _register_audit_listeners():
+    """Register audit listeners for all tracked models. Safe to call multiple times."""
+    global _audit_listeners_registered
+    if _audit_listeners_registered:
+        return
+    audit.register_audit_listeners(models.Specimen)
+    audit.register_audit_listeners(models.Sequence)
+    audit.register_audit_listeners(models.Image)
+    audit.register_audit_listeners(models.Pile)
+    audit.register_audit_listeners(models.Annotation)
+    audit.register_audit_listeners(models.User)
+    _audit_listeners_registered = True
 
 
 # Export main interface
