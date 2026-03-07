@@ -410,6 +410,8 @@ class AuditedSession:
         self.db.query_images = lambda **kwargs: self._query_helper(models.Image, **kwargs)
         self.db.query_piles = lambda **kwargs: self._query_helper(models.Pile, **kwargs)
         self.db.query_users = lambda **kwargs: self._query_helper(models.User, **kwargs)
+        self.db.query_taxa = lambda **kwargs: self._query_helper(models.Taxon, **kwargs)
+        self.db.get_sequences_with_specimens = lambda ids, eager=True: self._get_sequences_with_specimens(ids, eager)
 
         return self.db
 
@@ -467,6 +469,42 @@ class AuditedSession:
                     query = query.filter(column == value)
 
         return query
+
+    def _get_sequences_with_specimens(self, sequence_ids: List[int], eager_load: bool = True):
+        """
+        Fetch Sequence records with their associated Specimen records.
+
+        This method efficiently retrieves sequences and their related specimens,
+        avoiding N+1 query problems by using eager loading when requested.
+
+        Args:
+            sequence_ids: List of Sequence.id values to fetch
+            eager_load: If True, use joinedload to fetch specimens in single query
+
+        Returns:
+            List of Sequence objects with specimen relationship loaded
+
+        Example:
+            with audited_session(user_email="curator@museum.org") as db:
+                sequence_ids = [1, 2, 3, 4, 5]
+                sequences = db.get_sequences_with_specimens(sequence_ids)
+
+                for seq in sequences:
+                    print(f"Sequence {seq.id}: {seq.gene}")
+                    print(f"  Specimen: {seq.specimen.code} - {seq.specimen.scientific_name}")
+                    print(f"  Collector: {seq.specimen.collector}")
+        """
+        from sqlalchemy.orm import joinedload
+
+        query = self.db.query(models.Sequence).filter(
+            models.Sequence.id.in_(sequence_ids)
+        )
+
+        if eager_load:
+            # Eagerly load the specimen relationship to avoid N+1 queries
+            query = query.options(joinedload(models.Sequence.specimen))
+
+        return query.all()
 
 
 @contextmanager
