@@ -9,11 +9,12 @@ from sqlalchemy import (
     Column, String, Integer, BigInteger, Float, Text, DateTime,
     ForeignKey, Table, Date, Index, Boolean, JSON, Enum
 )
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import relationship, DeclarativeBase
 import secrets
 
-Base = declarative_base()
-
+class Base(DeclarativeBase):
+    def to_dict(self):
+            return {field.name: getattr(self, field.name) for field in self.__table__.c}
 
 class User(Base):
     __tablename__ = "users"
