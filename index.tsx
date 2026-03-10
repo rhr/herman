@@ -20,7 +20,7 @@ const root = ReactDOM.createRoot(rootElement);
 
 console.log('Rendering App component...');
 root.render(
-  <BrowserRouter>
+  <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
     <App />
   </BrowserRouter>
 );

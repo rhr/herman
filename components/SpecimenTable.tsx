@@ -50,7 +50,8 @@ const SpecimenTable: React.FC<SpecimenTableProps> = ({
   };
 
   const handleRowClick = (e: React.MouseEvent, id: number) => {
-    const specimenUrl = `/specimen/${id}?${searchParams.toString()}`;
+    const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+    const specimenUrl = `${base}/specimen/${id}?${searchParams.toString()}`;
 
     // Middle click or Ctrl/Cmd+click - open in new tab
     if (e.button === 1 || e.ctrlKey || e.metaKey) {

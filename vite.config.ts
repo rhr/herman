@@ -5,9 +5,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
+      base: JSON.stringify(env.VITE_BASE),
       server: {
-        port: 3000,
-        host: '0.0.0.0',
+        port: env.VITE_SERVER_PORT,
+        host: JSON.stringify(env.VITE_SERVER_HOST),
       },
       plugins: [react()],
       define: {
