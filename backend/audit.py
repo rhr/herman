@@ -2,7 +2,7 @@
 Audit logging utilities for tracking database changes
 Uses SQLAlchemy event listeners to automatically log CREATE, UPDATE, DELETE operations
 """
-from sqlalchemy import event, inspect
+from sqlalchemy import event, inspect, insert
 from sqlalchemy.orm import Session
 from contextvars import ContextVar
 from datetime import datetime
@@ -68,12 +68,12 @@ def get_object_state(obj) -> Dict[str, Any]:
     return state
 
 
-def create_audit_log(session: Session, obj, operation: str, old_values: Optional[Dict] = None):
+def create_audit_log(connection, obj, operation: str, old_values: Optional[Dict] = None):
     """
     Create an audit log entry for a database operation.
 
     Args:
-        session: SQLAlchemy session
+        connection: SQLAlchemy connection (from event listener)
         obj: The model instance being tracked
         operation: One of 'INSERT', 'UPDATE', or 'DELETE'
         old_values: Previous state of the object (for UPDATE and DELETE operations)
@@ -91,12 +91,13 @@ def create_audit_log(session: Session, obj, operation: str, old_values: Optional
     changed_fields = None
     if operation == 'UPDATE' and old_values and new_values:
         changed_fields = [
-            key for key in new_values.keys()
+            key for key in old_values.keys()
             if old_values.get(key) != new_values.get(key)
         ]
+        new_values = {k: new_values[k] for k in changed_fields if k in new_values}
 
-    # Create audit log record
-    audit_log = AuditLog(
+    # Use connection-level INSERT to avoid session.add() during flush
+    connection.execute(insert(AuditLog).values(
         table_name=obj.__tablename__,
         record_id=obj.id,
         operation=operation,
@@ -107,9 +108,7 @@ def create_audit_log(session: Session, obj, operation: str, old_values: Optional
         changed_fields=changed_fields,
         ip_address=context.get('ip_address'),
         user_agent=context.get('user_agent')
-    )
-
-    session.add(audit_log)
+    ))
 
 
 def register_audit_listeners(model_class):
@@ -128,47 +127,40 @@ def register_audit_listeners(model_class):
     @event.listens_for(model_class, 'after_insert')
     def after_insert_listener(mapper, connection, target):
         """Triggered after INSERT - logs the new record"""
-        session = Session.object_session(target)
-        if session:
-            # Avoid auditing the audit log itself
-            from models import AuditLog
-            if not isinstance(target, AuditLog):
-                create_audit_log(session, target, 'INSERT')
+        from models import AuditLog
+        if not isinstance(target, AuditLog):
+            create_audit_log(connection, target, 'INSERT')
 
     @event.listens_for(model_class, 'after_update')
     def after_update_listener(mapper, connection, target):
         """Triggered after UPDATE - logs old and new values"""
-        session = Session.object_session(target)
-        if session:
-            from models import AuditLog
-            if not isinstance(target, AuditLog):
-                # Extract old values from SQLAlchemy history
-                old_values = {}
-                insp = inspect(target)
+        from models import AuditLog
+        if not isinstance(target, AuditLog):
+            # Extract old values from SQLAlchemy history
+            old_values = {}
+            insp = inspect(target)
 
-                for attr in insp.attrs:
-                    hist = attr.load_history()
-                    if hist.has_changes():
-                        # Get the old value (before update)
-                        old_val = hist.deleted[0] if hist.deleted else None
+            for attr in insp.attrs:
+                hist = attr.load_history()
+                if hist.has_changes():
+                    # Get the old value (before update)
+                    old_val = hist.deleted[0] if hist.deleted else None
 
-                        # Handle datetime serialization
-                        if isinstance(old_val, datetime):
-                            old_val = old_val.isoformat()
+                    # Handle datetime serialization
+                    if isinstance(old_val, datetime):
+                        old_val = old_val.isoformat()
 
-                        old_values[attr.key] = old_val
+                    old_values[attr.key] = old_val
 
-                # Only create audit log if there were actual changes
-                if old_values:
-                    create_audit_log(session, target, 'UPDATE', old_values)
+            # Only create audit log if there were actual changes
+            if old_values:
+                create_audit_log(connection, target, 'UPDATE', old_values)
 
     @event.listens_for(model_class, 'after_delete')
     def after_delete_listener(mapper, connection, target):
         """Triggered after DELETE - logs the deleted record's state"""
-        session = Session.object_session(target)
-        if session:
-            from models import AuditLog
-            if not isinstance(target, AuditLog):
-                # Capture the state before deletion
-                old_values = get_object_state(target)
-                create_audit_log(session, target, 'DELETE', old_values)
+        from models import AuditLog
+        if not isinstance(target, AuditLog):
+            # Capture the state before deletion
+            old_values = get_object_state(target)
+            create_audit_log(connection, target, 'DELETE', old_values)
