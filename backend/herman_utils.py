@@ -424,15 +424,15 @@ class AuditedSession:
                 if self.verbose:
                     print(f"\n❌ Error occurred, changes rolled back: {exc_val}")
             else:
-                # Collect changes before commit/rollback
-                self._collect_changes_summary()
-
                 if self.dry_run:
-                    # Rollback in dry-run mode
+                    # Flush to trigger audit log writes, collect summary, then rollback
+                    self.db.flush()
+                    self._collect_changes_summary()
                     self.db.rollback()
                 else:
-                    # Commit changes
+                    # Commit first so audit logs are written, then summarize
                     self.db.commit()
+                    self._collect_changes_summary()
 
                 # Print summary
                 self._print_summary()
