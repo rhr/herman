@@ -34,7 +34,10 @@ from contextlib import contextmanager
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import inspect
+from sqlalchemy.orm import joinedload
 
+def is_list_tuple_set(obj):
+    return isinstance(obj, (list, tuple, set))
 
 class BackendNotFoundError(Exception):
     """Raised when backend directory cannot be located"""
@@ -412,6 +415,7 @@ class AuditedSession:
         self.db.query_users = lambda **kwargs: self._query_helper(models.User, **kwargs)
         self.db.query_taxa = lambda **kwargs: self._query_helper(models.Taxon, **kwargs)
         self.db.get_sequences_with_specimens = lambda ids, eager=True: self._get_sequences_with_specimens(ids, eager)
+        self.db.get_sequences_modified_after = lambda since, exclude_suspect=True: self._get_sequences_modified_after(since, exclude_suspect)
 
         return self.db
 
@@ -465,6 +469,10 @@ class AuditedSession:
                 column = getattr(model_class, key)
                 if value is None:
                     query = query.filter(column.is_(None))
+                elif isinstance(value, (list, tuple, set)):
+                    query = query.filter(column.in_(value))
+                elif isinstance(value, str) and '%' in value:
+                    query = query.filter(column.like(value))
                 else:
                     query = query.filter(column == value)
 
@@ -494,8 +502,6 @@ class AuditedSession:
                     print(f"  Specimen: {seq.specimen.code} - {seq.specimen.scientific_name}")
                     print(f"  Collector: {seq.specimen.collector}")
         """
-        from sqlalchemy.orm import joinedload
-
         query = self.db.query(models.Sequence).filter(
             models.Sequence.id.in_(sequence_ids)
         )
@@ -505,6 +511,41 @@ class AuditedSession:
             query = query.options(joinedload(models.Sequence.specimen))
 
         return query.all()
+
+
+    def _get_sequences_modified_after(
+        self,
+        since: datetime,
+        exclude_suspect: bool = False
+    ):
+        """
+        Fetch Sequence records modified after a given datetime, ordered by
+        modification time descending.
+
+        Args:
+            since: Return only sequences with mtime strictly after this datetime
+            exclude_suspect: If True, exclude records where suspect is True
+
+        Returns:
+            List of Sequence objects ordered by mtime descending
+
+        Example:
+            from datetime import datetime
+            with audited_session(user_email="curator@museum.org") as db:
+                cutoff = datetime(2025, 1, 1)
+                sequences = db.get_sequences_modified_after(cutoff, exclude_suspect=True)
+                for seq in sequences:
+                    print(f"{seq.mtime}  {seq.gene}  {seq.genbank_accession}")
+        """
+        query = self.db.query(models.Sequence).filter(
+            models.Sequence.mtime > since
+        )
+
+        if exclude_suspect:
+            query = query.filter(models.Sequence.suspect.isnot(True))
+
+        query = query.options(joinedload(models.Sequence.specimen))
+        return query.order_by(models.Sequence.mtime.desc()).all()
 
 
 @contextmanager
