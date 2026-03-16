@@ -415,7 +415,7 @@ class AuditedSession:
         self.db.query_users = lambda **kwargs: self._query_helper(models.User, **kwargs)
         self.db.query_taxa = lambda **kwargs: self._query_helper(models.Taxon, **kwargs)
         self.db.get_sequences_with_specimens = lambda ids, eager=True: self._get_sequences_with_specimens(ids, eager)
-        self.db.get_sequences_modified_after = lambda since, exclude_suspect=True: self._get_sequences_modified_after(since, exclude_suspect)
+        self.db.get_sequences_modified_after = lambda since, exclude_suspect=True, **kwargs: self._get_sequences_modified_after(gene, since, exclude_suspect)
 
         return self.db
 
@@ -516,7 +516,8 @@ class AuditedSession:
     def _get_sequences_modified_after(
         self,
         since: datetime,
-        exclude_suspect: bool = False
+        exclude_suspect: bool = False,
+        **kwargs
     ):
         """
         Fetch Sequence records modified after a given datetime, ordered by
@@ -537,9 +538,12 @@ class AuditedSession:
                 for seq in sequences:
                     print(f"{seq.mtime}  {seq.gene}  {seq.genbank_accession}")
         """
-        query = self.db.query(models.Sequence).filter(
-            models.Sequence.mtime > since
-        )
+        if kwargs:
+            query = self.query_sequences(**kwargs)
+        else:
+            query = self.db.query(models.Sequence)
+
+        query = query.filter(models.Sequence.mtime > since)
 
         if exclude_suspect:
             query = query.filter(models.Sequence.suspect.isnot(True))
