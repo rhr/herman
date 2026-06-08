@@ -923,6 +923,51 @@ async def update_specimen(
     return MessageResponse(message="Specimen updated successfully")
 
 
+@app.post("/api/specimens/{specimen_id}/images", response_model=ImageResponse, status_code=status.HTTP_201_CREATED)
+async def add_specimen_image(
+    request: Request,
+    specimen_id: int,
+    image: UploadFile = File(...),
+    caption: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user_with_audit),
+    db: Session = Depends(get_db)
+):
+    """Add a single image to an existing specimen"""
+    specimen = db.query(Specimen).filter(Specimen.id == specimen_id).first()
+    if not specimen:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Specimen not found"
+        )
+
+    base_url = os.getenv("API_IMAGE_URL", "http://localhost:8000")
+    max_position = db.query(func.max(Image.position)).filter(
+        Image.specimen_id == specimen_id
+    ).scalar()
+    position = 0 if max_position is None else max_position + 1
+
+    storage_path, original_filename, storage_filename, file_size = await file_storage.save_specimen_image(
+        image, specimen_id, position
+    )
+
+    image_record = Image(
+        specimen_id=specimen_id,
+        filename=original_filename,
+        storage_filename=storage_filename,
+        storage_path=storage_path,
+        url=file_storage.get_image_url(storage_path, base_url),
+        caption=caption.strip() if caption and caption.strip() else None,
+        mime_type=image.content_type,
+        size_bytes=file_size,
+        position=position,
+    )
+    db.add(image_record)
+    db.commit()
+    db.refresh(image_record)
+
+    return image_record
+
+
 @app.put("/api/images/{image_id}/set-primary", response_model=MessageResponse)
 async def set_primary_image(
     request: Request,
