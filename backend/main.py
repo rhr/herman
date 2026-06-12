@@ -21,6 +21,7 @@ from schemas import (
     PileCreate, PileUpdate, PileResponse,
     AnnotationCreate, AnnotationResponse,
     SequenceCreate, SequenceUpdate, SequenceResponse,
+    TaxonResponse,
     AuditLogResponse, AuditLogListResponse,
     InvitationCreate, InvitationResponse, InvitationListResponse, ValidateInvitationResponse,
     MessageResponse
@@ -489,6 +490,7 @@ async def get_all_specimens(
     sort_by: Optional[str] = Query(None, description="Field to sort by (id, family, genus, collector, collector_number, collection_date, created_at, updated_at)"),
     sort_direction: Optional[str] = Query("asc", description="Sort direction (asc or desc)"),
     pile_id: Optional[int] = Query(None, description="Filter specimens by pile ID"),
+    ids: Optional[str] = Query(None, description="Comma-separated list of specimen IDs to fetch"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -498,6 +500,11 @@ async def get_all_specimens(
 
     # Build base query - all authenticated users can see all specimens
     base_query = db.query(Specimen)
+
+    # Apply ids filter if provided
+    if ids is not None:
+        id_list = [int(i) for i in ids.split(',') if i.strip().isdigit()]
+        base_query = base_query.filter(Specimen.id.in_(id_list))
 
     # Apply pile filter if provided
     if pile_id is not None:
@@ -1540,6 +1547,47 @@ async def autocomplete_genus(
         "label": f"{r[0]} ({r[1]})" if r[1] else r[0],
         "family": r[1],
     } for r in results]
+
+
+# ========================================
+# Taxon Routes
+# ========================================
+
+@app.get("/api/taxa", response_model=List[TaxonResponse])
+async def get_taxa(
+    scientific_name: Optional[str] = Query(None, description="Filter by scientific name (partial match)"),
+    genus: Optional[str] = Query(None, description="Filter by genus"),
+    family: Optional[str] = Query(None, description="Filter by family"),
+    rank: Optional[str] = Query(None, description="Filter by rank (e.g. Species, Genus)"),
+    status: Optional[str] = Query(None, description="Filter by status (e.g. Accepted, Synonym)"),
+    limit: int = Query(50, ge=1, le=500, description="Maximum number of results"),
+    db: Session = Depends(get_db)
+):
+    """Get taxa with optional filters"""
+    query = db.query(Taxon)
+    if scientific_name:
+        query = query.filter(Taxon.scientific_name.ilike(f"%{scientific_name}%"))
+    if genus:
+        query = query.filter(Taxon.genus == genus)
+    if family:
+        query = query.filter(Taxon.family == family)
+    if rank:
+        query = query.filter(Taxon.rank == rank)
+    if status:
+        query = query.filter(Taxon.status == status)
+    return query.order_by(Taxon.scientific_name).limit(limit).all()
+
+
+@app.get("/api/taxa/{taxon_id}", response_model=TaxonResponse)
+async def get_taxon(
+    taxon_id: str,
+    db: Session = Depends(get_db)
+):
+    """Get a single taxon by its WCVP taxon_id"""
+    taxon = db.query(Taxon).filter(Taxon.taxon_id == taxon_id).first()
+    if not taxon:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Taxon not found")
+    return taxon
 
 
 # ========================================
