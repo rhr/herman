@@ -259,6 +259,25 @@ class SequenceResponse(BaseModel):
 
 
 # ========================================
+# Taxon Schemas
+# ========================================
+
+class TaxonResponse(BaseModel):
+    id: int
+    taxon_id: Optional[str]
+    family: Optional[str]
+    genus: Optional[str]
+    scientific_name: Optional[str]
+    author: Optional[str]
+    rank: Optional[str]
+    status: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ========================================
 # Audit Log Schemas
 # ========================================
 
