@@ -100,7 +100,7 @@ class Sequence(Base):
     # Sequence data fields
     gene = Column(String(100), index=True)  # matK, rps16, ITS, etc.
     genbank_id = Column(String(50))
-    genbank_accession = Column(String(50), index=True)
+    genbank_accession = Column(String(50), unique=True)
     taxon = Column(String(255))
     sequence = Column(Text, nullable=False)  # The DNA sequence
     suspect = Column(Boolean, default=False)  # Data quality flag
