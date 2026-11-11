@@ -267,11 +267,15 @@ async def create_invitation(
             detail="User with this email already exists"
         )
 
-    # Check for existing pending invitation
+    # Check for existing pending invitation (expired ones don't count)
     existing_invitation = db.query(Invitation).filter(
         Invitation.email == invitation_data.email,
         Invitation.used_at.is_(None),
-        Invitation.revoked == False
+        Invitation.revoked == False,
+        or_(
+            Invitation.expires_at.is_(None),
+            Invitation.expires_at > datetime.utcnow()
+        )
     ).first()
 
     if existing_invitation:
