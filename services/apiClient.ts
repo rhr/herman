@@ -2,7 +2,7 @@
  * API Client for Herbarium Pro FastAPI Backend
  */
 
-import { Specimen, Pile, Annotation, AuditLogListResponse, AuditLogStats } from '../types';
+import { Specimen, Pile, Annotation, AuditLogListResponse, AuditLogStats, Invitation, InvitationListResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -544,6 +544,56 @@ class ApiClient {
     });
 
     return await this.handleResponse<AuditLogStats>(response);
+  }
+
+  // ========================================
+  // Invitations (admin only)
+  // ========================================
+
+  async listInvitations(statusFilter?: string): Promise<InvitationListResponse> {
+    const queryParams = new URLSearchParams();
+    if (statusFilter) queryParams.append('status_filter', statusFilter);
+
+    const response = await fetch(`${API_BASE_URL}/invitations?${queryParams.toString()}`, {
+      headers: this.getAuthHeader(),
+    });
+
+    return await this.handleResponse<InvitationListResponse>(response);
+  }
+
+  async createInvitation(email: string, expiresInDays?: number | null, notes?: string): Promise<Invitation> {
+    const response = await fetch(`${API_BASE_URL}/invitations`, {
+      method: 'POST',
+      headers: {
+        ...this.getAuthHeader(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        expires_in_days: expiresInDays ?? null,
+        notes: notes || null,
+      }),
+    });
+
+    return await this.handleResponse<Invitation>(response);
+  }
+
+  async revokeInvitation(invitationId: number): Promise<{ message: string }> {
+    const response = await fetch(`${API_BASE_URL}/invitations/${invitationId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeader(),
+    });
+
+    return await this.handleResponse<{ message: string }>(response);
+  }
+
+  async resendInvitation(invitationId: number): Promise<Invitation> {
+    const response = await fetch(`${API_BASE_URL}/invitations/${invitationId}/resend`, {
+      method: 'POST',
+      headers: this.getAuthHeader(),
+    });
+
+    return await this.handleResponse<Invitation>(response);
   }
 }
 

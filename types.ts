@@ -118,6 +118,23 @@ export interface AuditLogListResponse {
   has_prev: boolean;
 }
 
+export interface Invitation {
+  id: number;
+  email: string;
+  token: string;
+  created_at: string; // ISO date string (UTC, no offset)
+  expires_at: string | null;
+  used_at: string | null;
+  revoked: boolean;
+  notes: string | null;
+  invitation_url: string | null;
+}
+
+export interface InvitationListResponse {
+  invitations: Invitation[];
+  total: number;
+}
+
 export interface AuditLogStats {
   total_logs: number;
   by_operation: Record<string, number>;
