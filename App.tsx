@@ -444,7 +444,7 @@ const App: React.FC = () => {
     setPiles(prev => prev.filter(p => p.id !== id));
     pushHistory('DELETE_PILE', `Deleted pile: ${pileToDelete.name}`, { pile: pileToDelete });
 
-    if (activePileId === id) setActivePileId(null);
+    if (activePileId === id) updateUrlState({ activePileId: null, currentPage: 1 }, true);
     await DatabaseService.deletePile(id);
   };
 
